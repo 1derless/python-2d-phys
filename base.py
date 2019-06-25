@@ -6,7 +6,7 @@ some utility functions.
 import itertools
 from math import sin, cos
 
-__all__ = ['take', 'flatten', 'Vec', 'Rect']
+#__all__ = ['take', 'flatten', 'Vec', 'Rect']
 
 
 def take(n, iterable):
@@ -26,6 +26,10 @@ def flatten(iterable):
 
 
 class Vec:
+    # Restrict instances to hold only the attributes in the following
+    # table.  This saves memory at the cost of flexibility.
+    __slots__ = ["x", "y"]
+
     def __init__(self, x=0, y=0):
         self.x = x
         self.y = y
@@ -40,18 +44,40 @@ class Vec:
     def __add__(self, other):
         return Vec(x=self.x + other.x,
                    y=self.y + other.y)
+    __radd__ = __add__
 
-    def __mul__(self, other: float):
+    def __sub__(self, other):
+        return Vec(x=self.x - other.x,
+                   y=self.y - other.y)
+
+    def __mul__(self, other):
         return Vec(x=self.x * other,
                    y=self.y * other)
+    __rmul__ = __mul__
+
+    def __truediv__(self, other):
+        return Vec(x=self.x / other,
+                   y=self.y / other)
 
     def __iadd__(self, other):
-        self.x = self.x + other.x
-        self.y = self.y + other.y
+        self.x += other.x
+        self.y += other.y
+        return self
+    
+    def __isub__(self, other):
+        self.x -= other.x
+        self.y -= other.y
+        return self
 
     def __imul__(self, other: float):
         self.x *= other
         self.y *= other
+        return self
+
+    def __idiv__(self, other: float):
+        self.x /= other
+        self.y /= other
+        return self
 
     def __getitem__(self, i):
         if i == 0:
@@ -67,13 +93,75 @@ class Vec:
                           self.x*sin(t) + self.y*cos(t))
 
 
+class PhysObj:
+    """A basic physics object."""
+    ...
+
+
+class PhysWorld:
+    def __init__(self):
+        self._objects = []
+        self.gravity = Vec(0, 0)
+        self.s_pos = Vec(0, 0)
+
+    def add_obj(self, *objs):
+        for obj in objs:
+            if not isinstance(obj, PhysObj):
+                raise TypeError(f"{obj} is not a PhysObj")
+
+            self._objects.append(obj)
+
+    def update(self, dt):
+        for obj in self._objects:
+            # Calculate new position using Velocty Verlet
+
+            # Springs
+            stiffness = 0.75
+            new_acc = (self.s_pos - obj.pos) * (stiffness / obj.mass)
+
+            # Apply gravity.
+            new_acc += self.gravity
+
+            # Move object.
+            obj.pos += obj.vel*dt + new_acc*dt*dt/2.0
+            obj.vel += (obj.acc + new_acc) * dt / 2.0
+            obj.acc = new_acc
+
+
+class Pin(PhysObj):
+    """A fixed point in space."""
+    @property
+    def vel(self):
+        return Vec(0, 0)
+
+    # @vel.setter
+    # def vel(self, value):
+    #     pass
+
+    def __init__(self, pos):
+        self.pos = pos
+
+
+class Projectile(PhysObj):
+    def __init__(self, pos, mass):
+        self.pos = pos
+        self.mass = mass
+        self.vel = Vec(x=0, y=0)
+        self.acc = Vec(x=0, y=0)
+
+
+class Spring:
+    def update(self):
+        ...
+
+
 class Rect:
-    def __init__(self, x=0, y=0, w=0, h=0, t=0):
+    def __init__(self, x=0, y=0, w=0, h=0, angle=0):
         self.x = x
         self.y = y
         self.w = w
         self.h = h
-        self.t = t
+        self.angle = angle
 
     def get_vertices(self):
         """Returns positions of all 4 corners."""
@@ -85,7 +173,7 @@ class Rect:
                     Vec(-w,  h))
 
         for vertex in vertices:
-            vertex.rotate(self.t)
+            vertex.rotate(self.angle)
             vertex += Vec(self.x, self.y)  # translate
 
         return vertices
