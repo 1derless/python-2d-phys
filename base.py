@@ -101,6 +101,7 @@ class PhysObj:
 class PhysWorld:
     def __init__(self):
         self._objects = []
+        self._springs = []
         self.gravity = Vec(0, 0)
         self.s_pos = Vec(0, 0)
 
@@ -111,35 +112,46 @@ class PhysWorld:
 
             self._objects.append(obj)
 
+    def add_spring(self, *springs):
+        for spring in springs:
+            if not isinstance(spring, Spring):
+                raise TypeError(f"{spring} is not a Spring")
+
+            self._springs.append(spring)
+
     def update(self, dt):
+        for spring in self._springs:
+            force = (spring.end2.pos - spring.end1.pos) * spring.stiffness
+            spring.end1.new_acc += force / spring.end1.mass
+            spring.end2.new_acc -= force / spring.end2.mass
+
         for obj in self._objects:
-            # Calculate new position using Velocty Verlet
-
-            # Springs
-            stiffness = 0.75
-            new_acc = (self.s_pos - obj.pos) * stiffness / obj.mass
-
             # Apply gravity.
-            new_acc += self.gravity
+            obj.new_acc += self.gravity
 
-            # Move object.
-            obj.pos += obj.vel*dt + new_acc*dt*dt/2.0
-            obj.vel += (obj.acc + new_acc) * dt / 2.0
-            obj.acc = new_acc
+            # Calculate new position using Velocty Verlet.
+            obj.vel += (obj.acc + obj.new_acc) * dt / 2
+            obj.acc = obj.new_acc
+            obj.pos += obj.vel*dt + obj.new_acc*dt*dt/2
+            obj.new_acc = Vec(x=0, y=0)
 
 
 class Pin(PhysObj):
     """A fixed point in space."""
     @property
-    def vel(self):
-        return Vec(0, 0)
-
-    # @vel.setter
-    # def vel(self, value):
-    #     pass
+    def pos(self):
+        return self._pos
+    
+    @pos.setter
+    def pos(self, value):
+        pass
 
     def __init__(self, pos):
-        self.pos = pos
+        self._pos = pos
+        self.vel = Vec()
+        self.acc = Vec()
+        self.new_acc = Vec()
+        self.mass = float('inf')
 
 
 class Projectile(PhysObj):
@@ -148,11 +160,14 @@ class Projectile(PhysObj):
         self.mass = mass
         self.vel = Vec(x=0, y=0)
         self.acc = Vec(x=0, y=0)
+        self.new_acc = Vec()
 
 
 class Spring:
-    def update(self):
-        ...
+    def __init__(self, stiffness, end1, end2):
+        self.stiffness = stiffness
+        self.end1 = end1
+        self.end2 = end2
 
 
 class Rect:
