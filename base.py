@@ -117,7 +117,7 @@ class PhysWorld:
 
             # Springs
             stiffness = 0.75
-            new_acc = (self.s_pos - obj.pos) * (stiffness / obj.mass)
+            new_acc = (self.s_pos - obj.pos) * stiffness / obj.mass
 
             # Apply gravity.
             new_acc += self.gravity
