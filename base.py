@@ -86,9 +86,21 @@ class Vec:
             return self.y
         else:
             raise IndexError
+    
+    def __abs__(self):
+        return (self.x**2 + self.y**2) ** 0.5
+
+    def cross(self, other):
+        """Compute mathematical cross product and return."""
+        return self.x * other.y - self.y * other.x
 
     def rotate(self, t):
         """Rotate by `t` radians anticlockwise around (0, 0)."""
+        return Vec(x=self.x*cos(t) - self.y*sin(t),
+                   y=self.x*sin(t) + self.y*cos(t))
+    
+    def rotate_inplace(self, t):
+        """Rotate by `t` radians anticlockwise around (0, 0) inplace."""
         self.x, self.y = (self.x*cos(t) - self.y*sin(t),
                           self.x*sin(t) + self.y*cos(t))
 
@@ -111,7 +123,7 @@ class Rect:
                     Vec(-w,  h))
 
         for vertex in vertices:
-            vertex.rotate(self.angle)
+            vertex.rotate_inplace(self.angle)
             vertex += Vec(self.x, self.y)  # translate
 
         return vertices

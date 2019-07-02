@@ -14,6 +14,7 @@ class PhysObj:
 
 
 class PhysWorld:
+    """A world to hold and simulate interaction of `PhysObj`s."""
     def __init__(self):
         self._objects = []
         self._springs = []
@@ -34,11 +35,36 @@ class PhysWorld:
             self._springs.append(spring)
 
     def update(self, dt):
+        # Dampen.
+        for obj in self._objects:
+            obj.vel -= obj.vel * 0.1 * dt
+            obj.ang_vel -= obj.ang_vel * 0.1 * dt
+
         # Calculate spring forces and apply them.
         for spring in self._springs:
-            force = (spring.end2.pos - spring.end1.pos) * spring.stiffness
+            # Compute force.
+            length = spring.end2.pos + spring.get_end2_join_pos() \
+                     - spring.end1.pos - spring.get_end1_join_pos()
+
+            # Skip this string if it's sack.
+            abs_length = abs(length)
+            if abs_length < spring.slack_length:
+                continue
+
+            extention = length * (abs_length - spring.slack_length) \
+                        / abs_length
+            force = extention * spring.stiffness
+
             spring.end1.new_acc += force / spring.end1.mass
             spring.end2.new_acc -= force / spring.end2.mass
+
+            # Compute torque for end1.
+            torque1 = spring.get_end1_join_pos().cross(force) 
+            spring.end1.ang_acc += torque1 / spring.end1.moi
+
+            # .. for end2.
+            torque2 = spring.get_end2_join_pos().cross(force)
+            spring.end2.ang_acc -= torque2 / spring.end2.moi
 
         for obj in self._objects:
             # Apply gravity.
@@ -58,7 +84,13 @@ class PhysWorld:
 
 
 class Pin(PhysObj):
-    """A fixed point in space."""
+    """A fixed point in space.
+    
+    IMPORTANT NOTE:
+     In order to move the pin, its `relocate` method must be used.
+     This is as the `Pin` ignores messages to move itself that seem to
+     come form a `PhysWorld` (ie that are sent using `Pin.pos = ...`).
+    """
     @property
     def pos(self):
         return self._pos
@@ -73,6 +105,14 @@ class Pin(PhysObj):
         self.acc = Vec()
         self.new_acc = Vec()
         self.mass = float('inf')
+
+        self.ang = 0
+        self.ang_vel = 0
+        self.ang_acc = 0
+        self.moi = float('inf')
+
+    def relocate(self, value):
+        self._pos = value
 
 
 class Projectile(PhysObj):
@@ -95,7 +135,39 @@ class Rotatable(Projectile):
 
 
 class Spring:
-    def __init__(self, stiffness, end1, end2):
+    """A spring connecting two `PhysObj`s.
+
+    stiffness - the spring constant.
+    end1 - an object attached to one end.
+    end2 - an object attached to the other end.
+    slack_length - the distance between end1 and end2 before the string
+        exherts any force (default=0).
+    end1_join_pos - the displacement from the centre of end1's object
+         of that end of the spring (default=no displacement).
+    end2_join_pos - the displacement from the centre of end2's object
+         of that end of the spring(default=no displacement).
+    """
+    def __init__(self, stiffness, end1, end2, slack_length=0,
+                 end1_join_pos=None, end2_join_pos=None):
         self.stiffness = stiffness
+        self.slack_length = slack_length
         self.end1 = end1
         self.end2 = end2
+
+        if end1_join_pos is None:
+            self.end1_join_pos = Vec(0, 0)
+        else:
+            self.end1_join_pos = end1_join_pos
+
+        if end2_join_pos is None:
+            self.end2_join_pos = Vec(0, 0)
+        else:
+            self.end2_join_pos = end2_join_pos
+
+    def get_end1_join_pos(self):
+        """Calculates the rotation-aware join pos of end1."""
+        return self.end1_join_pos.rotate(self.end1.ang)
+
+    def get_end2_join_pos(self):
+        """Calculates the rotation-aware join pos of end2."""
+        return self.end2_join_pos.rotate(self.end2.ang)
