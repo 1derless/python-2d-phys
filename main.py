@@ -22,7 +22,7 @@ class Window(pyglet.window.Window):
         self.pin = Pin(pos=Vec(700, 1000))
 
         self.s1 = Spring(stiffness=0.75, end1=self.p1, end2=self.p2)
-        self.s2 = Spring(stiffness=0.1, end1=self.pin, end2=self.p2)
+        self.s2 = Spring(stiffness=0.5, end1=self.pin, end2=self.p2)
 
         self.phys_world = PhysWorld()
         self.phys_world.gravity.y = -75
@@ -33,7 +33,7 @@ class Window(pyglet.window.Window):
         #pyglet.clock.schedule(self.periodic_update)
 
     def periodic_update(self, dt):
-        self.rect.angle += dt
+        #self.rect.angle += dt
         #self.rect.x, self.rect.y = tuple(self.proj.pos)
 
         self.phys_world.update(dt)
