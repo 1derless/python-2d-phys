@@ -3,7 +3,9 @@
 from base import *
 
 
-__all__ = ['PhysObj', 'PhysWorld', 'Pin', 'Projectile', 'Spring']
+__all__ = ['PhysWorld',
+           'PhysObj', 'Pin', 'Projectile', 'Rotatable',
+           'Spring']
 
 
 class PhysObj:
@@ -32,6 +34,7 @@ class PhysWorld:
             self._springs.append(spring)
 
     def update(self, dt):
+        # Calculate spring forces and apply them.
         for spring in self._springs:
             force = (spring.end2.pos - spring.end1.pos) * spring.stiffness
             spring.end1.new_acc += force / spring.end1.mass
@@ -46,6 +49,12 @@ class PhysWorld:
             obj.acc = obj.new_acc
             obj.pos += obj.vel*dt + obj.new_acc*dt*dt/2
             obj.new_acc = Vec(x=0, y=0)
+
+            # Calculate new oreintation using Euler's method.
+            # Todo: Convert this to an angular Velocity Verlet.
+            obj.ang_vel += obj.ang_acc * dt
+            obj.ang += obj.ang_vel * dt
+            obj.ang_acc = 0
 
 
 class Pin(PhysObj):
@@ -73,6 +82,16 @@ class Projectile(PhysObj):
         self.vel = Vec(x=0, y=0)
         self.acc = Vec(x=0, y=0)
         self.new_acc = Vec()
+
+
+class Rotatable(Projectile):
+    def __init__(self, pos, mass, ang, moi):
+        super().__init__(pos, mass)
+        # There is only one axis for roataion in 2D - the Z-axis.
+        self.ang = ang
+        self.ang_vel = 0
+        self.ang_acc = 0
+        self.moi = moi  # Moment of intertia
 
 
 class Spring:

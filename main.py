@@ -14,10 +14,11 @@ class Window(pyglet.window.Window):
         self.mouse = (0, 0)
         self.rect = Rect(x=250, y=250, w=100, h=200)
 
-        self.p1 = Projectile(pos=Vec(700, 1000), mass=0.1)
+        self.p1 = Rotatable(pos=Vec(700, 1000), mass=0.1, ang=0, moi=1)
         self.p1.vel.x -= 500
-        self.p2 = Projectile(pos=Vec(750, 600), mass=0.5)
+        self.p2 = Rotatable(pos=Vec(750, 600), mass=0.5, ang=0, moi=1)
         self.p2.vel.x += 100
+        self.p2.ang_vel = 1
 
         self.pin = Pin(pos=Vec(700, 1000))
 
@@ -52,12 +53,16 @@ class Window(pyglet.window.Window):
         #vertices.draw(pyglet.gl.GL_TRIANGLES)
 
         for p in (self.p1, self.p2):
+            #vertices = (( p.pos.x            , p.pos.y - 50*p.mass),
+            #            (-50*p.mass + p.pos.x, p.pos.y            ),
+            #            ( p.pos.x            , p.pos.y + 50*p.mass),
+            #            ( 50*p.mass + p.pos.x, p.pos.y            ))
+            r = Rect(x=p.pos.x, y=p.pos.y, w=100*p.mass, h=100*p.mass,
+                     angle=p.ang)
+
             spot = pyglet.graphics.vertex_list_indexed(
                 4, (0, 1, 2, 0, 2, 3),
-                ('v2f', (          p.pos.x, p.pos.y - 50*p.mass,
-                         -50*p.mass + p.pos.x, p.pos.y,
-                                   p.pos.x, p.pos.y + 50*p.mass ,
-                          50*p.mass + p.pos.x, p.pos.y))
+                ('v2f', r.get_vertices_flat())
             )
             spot.draw(pyglet.gl.GL_TRIANGLES)
 

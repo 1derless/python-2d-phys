@@ -74,7 +74,7 @@ class Vec:
         self.y *= other
         return self
 
-    def __idiv__(self, other: float):
+    def __itruediv__(self, other: float):
         self.x /= other
         self.y /= other
         return self
