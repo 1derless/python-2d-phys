@@ -36,9 +36,9 @@ class Window(pyglet.window.Window):
         self.mouse = (0, 0)
         self.rect = Rect(x=250, y=250, w=100, h=200)
 
-        self.p = Rotatable(pos=Vec(x=500, y=450), mass=0.5, ang=0,
+        self.p = PhysObj(pos=Vec(x=500, y=450), mass=0.5, ang=0,
                            moi=0.5 * (100**2 + 200**2) / 12)
-        point2 = Rotatable(pos=Vec(x=300, y=300), mass=0.1, ang=0,
+        point2 = PhysObj(pos=Vec(x=300, y=300), mass=0.1, ang=0,
                            moi=0.1 * (100**2 + 200**2) / 12)
 
         self.pin = Pin(pos=Vec(450, 400))

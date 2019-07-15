@@ -4,13 +4,25 @@ from base import *
 
 
 __all__ = ['PhysWorld',
-           'PhysObj', 'Pin', 'Projectile', 'Rotatable',
+           'PhysObj', 'Projectile', 'Pin',
            'Spring']
 
 
 class PhysObj:
     """A basic physics object."""
-    ...
+    def __init__(self, pos, mass, ang, moi):
+        self.pos = pos
+        self.mass = mass
+        self.vel = Vec(x=0, y=0)
+        self.acc = Vec(x=0, y=0)
+        self.new_acc = Vec()
+
+        # There is only one axis for roataion in 2D - the Z-axis.
+        self.ang = ang
+        self.ang_vel = 0
+        self.ang_acc = 0
+        self.new_ang_acc = 0
+        self.moi = moi  # Moment of intertia
 
 
 class PhysWorld:
@@ -35,11 +47,17 @@ class PhysWorld:
             self._springs.append(spring)
 
     def update(self, dt):
-        # Dampen.
+        self.dampen(dt)
+        self.update_spring(dt)
+        self.update_turn(dt)
+        self.update_move(dt)
+
+    def dampen(self, dt):
         for obj in self._objects:
             obj.vel -= obj.vel * 0.1 * dt
             obj.ang_vel -= obj.ang_vel * 0.1 * dt
 
+    def update_spring(self, dt):
         # Calculate spring forces and apply them.
         for spring in self._springs:
             # Compute force.
@@ -49,7 +67,10 @@ class PhysWorld:
             # Skip this string if it's sack.
             abs_length = abs(length)
             if abs_length < spring.slack_length:
+                spring.slack = True
                 continue
+            else:
+                spring.slack = False
 
             extention = length * (abs_length - spring.slack_length) \
                         / abs_length
@@ -60,12 +81,13 @@ class PhysWorld:
 
             # Compute torque for end1.
             torque1 = spring.get_end1_join_pos().cross(force) 
-            spring.end1.ang_acc += torque1 / spring.end1.moi
+            spring.end1.new_ang_acc += torque1 / spring.end1.moi
 
             # .. for end2.
             torque2 = spring.get_end2_join_pos().cross(force)
-            spring.end2.ang_acc -= torque2 / spring.end2.moi
+            spring.end2.new_ang_acc -= torque2 / spring.end2.moi
 
+    def update_move(self, dt):
         for obj in self._objects:
             # Apply gravity.
             obj.new_acc += self.gravity
@@ -74,16 +96,30 @@ class PhysWorld:
             obj.vel += (obj.acc + obj.new_acc) * dt / 2
             obj.acc = obj.new_acc
             obj.pos += obj.vel*dt + obj.new_acc*dt*dt/2
-            obj.new_acc = Vec(x=0, y=0)
+            obj.new_acc = Vec(0, 0)
 
-            # Calculate new oreintation using Euler's method.
-            # Todo: Convert this to an angular Velocity Verlet.
-            obj.ang_vel += obj.ang_acc * dt
-            obj.ang += obj.ang_vel * dt
-            obj.ang_acc = 0
+    def update_turn(self, dt):
+        for obj in self._objects:
+            # Calculate new oreintation using Velocity Verlet.
+            obj.ang_vel += (obj.ang_acc + obj.new_ang_acc) * dt / 2
+            obj.ang_acc = obj.new_ang_acc
+            obj.ang += obj.ang_vel*dt + obj.new_ang_acc*dt*dt/2
+            obj.new_ang_acc = 0
+
+    def get_state(self):
+        """Get the positions and velocities of al objects in self."""
+        return "".join(flatten(
+                        ("obj p=", str(obj.pos), " v=", str(obj.vel), "\n")
+                        for obj in self._objects))
 
 
-class Pin(PhysObj):
+class Projectile(PhysObj):
+    """A PhysObj that has no rotation or width."""
+    def __init__(self, pos, mass):
+        super().__init__(pos, mass, ang=0, moi=float('inf'))
+
+
+class Pin(Projectile):
     """A fixed point in space.
     
     IMPORTANT NOTE:
@@ -100,38 +136,11 @@ class Pin(PhysObj):
         pass
 
     def __init__(self, pos):
-        self._pos = pos
-        self.vel = Vec()
-        self.acc = Vec()
-        self.new_acc = Vec()
-        self.mass = float('inf')
-
-        self.ang = 0
-        self.ang_vel = 0
-        self.ang_acc = 0
-        self.moi = float('inf')
+        super().__init__(pos=pos, mass=float('inf'))
+        self.relocate(pos)
 
     def relocate(self, value):
         self._pos = value
-
-
-class Projectile(PhysObj):
-    def __init__(self, pos, mass):
-        self.pos = pos
-        self.mass = mass
-        self.vel = Vec(x=0, y=0)
-        self.acc = Vec(x=0, y=0)
-        self.new_acc = Vec()
-
-
-class Rotatable(Projectile):
-    def __init__(self, pos, mass, ang, moi):
-        super().__init__(pos, mass)
-        # There is only one axis for roataion in 2D - the Z-axis.
-        self.ang = ang
-        self.ang_vel = 0
-        self.ang_acc = 0
-        self.moi = moi  # Moment of intertia
 
 
 class Spring:
@@ -151,6 +160,7 @@ class Spring:
                  end1_join_pos=None, end2_join_pos=None):
         self.stiffness = stiffness
         self.slack_length = slack_length
+        self.slack = False
         self.end1 = end1
         self.end2 = end2
 
