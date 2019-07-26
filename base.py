@@ -25,6 +25,24 @@ def flatten(iterable):
     return itertools.chain.from_iterable(iterable)
 
 
+def min_max(iterable):
+    """Find the minimum and maximum of a single iterable."""
+    iterable = iter(iterable)
+    try:
+        min_ = max_ = next(iterable)
+    except StopIteration:
+        raise ValueError("min_max() arg is an empty sequence")
+
+    for item in iterable:
+        if min_ > item:
+            min_ = item
+
+        if max_ < item:
+            max_ = item
+
+    return min_, max_
+
+
 class Vec:
     # Restrict instances to hold only the attributes in the following
     # table.  This saves memory at the cost of flexibility.
