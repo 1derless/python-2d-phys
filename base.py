@@ -6,7 +6,7 @@ some utility functions.
 import itertools
 from math import sin, cos
 
-__all__ = ['take', 'flatten', 'Vec', 'Rect']
+__all__ = ['take', 'flatten', 'min_max', 'Vec', 'Rect']
 
 
 def take(n, iterable):
