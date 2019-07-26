@@ -1,8 +1,11 @@
 #!./venv/bin/python3
 
 import time
+import math
+import gc
 
 import pyglet
+from pyglet.window import key
 
 from base import *
 from phys import *
@@ -35,6 +38,8 @@ class Window(pyglet.window.Window):
         super().__init__(*args, **kwargs)
         self.mouse = (0, 0)
         self.rect = Rect(x=250, y=250, w=100, h=200)
+        self.force_gc = False
+        self.time = 0
 
         self.p = PhysObj(pos=Vec(x=500, y=450), mass=0.5, ang=0,
                            moi=0.5 * (100**2 + 200**2) / 12)
@@ -61,15 +66,29 @@ class Window(pyglet.window.Window):
         #pyglet.clock.schedule(self.periodic_update)
 
     def periodic_update(self, dt):
+        self.time += dt
+
+        #self.mouse_pin.relocate(Vec(x=500 + 250*math.cos(self.time),
+        #                            y=750 - 250*math.sin(self.time)))
+
         self.phys_world.update(dt)
 
     def on_mouse_motion(self, x, y, _dx, _dy):
         self.mouse_pin.relocate(Vec(x, y))
+    
+    def on_key_press(self, symbol, modifiers):
+        if symbol == key.G:
+            self.force_gc = not self.force_gc
+        else:
+            super().on_key_press(symbol, modifiers)
 
     def on_draw(self):
         self.clear()
         self.phys_world.draw()
         print(pyglet.clock.get_fps(), end="      \r")
+
+        if self.force_gc:
+            gc.collect()
 
 
 if __name__ == '__main__':

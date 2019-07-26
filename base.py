@@ -91,8 +91,12 @@ class Vec:
         return (self.x**2 + self.y**2) ** 0.5
 
     def cross(self, other):
-        """Compute mathematical cross product and return."""
+        """Compute mathematical cross product and return it."""
         return self.x * other.y - self.y * other.x
+
+    def dot(self, other):
+        """Compute mathematical dot product and return it."""
+        return self.x * other.x + self.y * other.y
 
     def rotate(self, t):
         """Rotate by `t` radians anticlockwise around (0, 0)."""
