@@ -6,7 +6,7 @@ some utility functions.
 import itertools
 from math import sin, cos
 
-__all__ = ['take', 'flatten', 'min_max', 'Vec', 'Rect']
+__all__ = ['take', 'flatten', 'min_max', 'Vec', 'Rect', 'Poly']
 
 
 def take(n, iterable):
@@ -81,7 +81,7 @@ class Vec:
         self.x += other.x
         self.y += other.y
         return self
-    
+
     def __isub__(self, other):
         self.x -= other.x
         self.y -= other.y
@@ -104,7 +104,7 @@ class Vec:
             return self.y
         else:
             raise IndexError
-    
+
     def __abs__(self):
         return (self.x**2 + self.y**2) ** 0.5
 
@@ -120,7 +120,7 @@ class Vec:
         """Rotate by `t` radians anticlockwise around (0, 0)."""
         return Vec(x=self.x*cos(t) - self.y*sin(t),
                    y=self.x*sin(t) + self.y*cos(t))
-    
+
     def rotate_inplace(self, t):
         """Rotate by `t` radians anticlockwise around (0, 0) inplace."""
         self.x, self.y = (self.x*cos(t) - self.y*sin(t),
@@ -128,12 +128,13 @@ class Vec:
 
 
 class Rect:
-    def __init__(self, x=0, y=0, w=0, h=0, angle=0):
+    def __init__(self, x=0, y=0, w=0, h=0, angle=0, colour=(255, 255, 255)):
         self.x = x
         self.y = y
         self.w = w
         self.h = h
         self.angle = angle
+        self.colour = colour
 
     def get_vertices(self):
         """Returns positions of all 4 corners."""
@@ -153,3 +154,15 @@ class Rect:
     def get_vertices_flat(self):
         """Returns all 4 corners's positions in a flat tuple."""
         return tuple(flatten(self.get_vertices()))
+
+    def get_poly(self):
+        return Poly(vertices=self.get_vertices(), colour=self.colour)
+
+
+class Poly:
+    def __init__(self, vertices, colour=(255, 255, 255)):
+        self.vertices = list(vertices)
+        self.colour = colour
+
+    def __iter__(self):
+        return iter((self.vertices, self.colour))

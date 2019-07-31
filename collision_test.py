@@ -25,6 +25,7 @@ def collide_along(direction, polygon1, polygon2):
         # They are intersecting.
         return True
 
+
 def collide(polygon1, polygon2):
     # Work out which axes need to be tested against.
     test_axes = []
@@ -44,7 +45,6 @@ def collide(polygon1, polygon2):
 class Polygon:
     def __init__(self, vertices, colour=(255, 255, 255)):
         self.vertices = list(vertices)
-        random.shuffle(self.vertices)
         self.colour = colour
 
     def __iter__(self):
@@ -54,93 +54,77 @@ class Polygon:
 class Window(pyglet.window.Window):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.axis = Vec(x=1, y=0)
-        self.control_vertex = False
-        self.control_normal = False
+        self.selection = None
 
-        self.poly1 = Polygon(colour=(255, 0, 0),
-                             vertices=[Vec(0, 0),
-                                       Vec(0, 1),
-                                       #Vec(1, 1),
-                                       Vec(1, 0)])
+        self.shapes = [Polygon(colour=(255, 0, 0),
+                               vertices=[Vec(0, 0),
+                                         Vec(1, 0),
+                                         Vec(0, 1)]),
+                       Polygon(colour=(0, 255, 0),
+                               vertices=[Vec(0, 0),
+                                         Vec(1, 0),
+                                         Vec(1, 1),
+                                         Vec(0, 1)]),
+                       Polygon(colour=(0, 0, 255),
+                               vertices=[Vec(0.0, 0.0),
+                                         Vec(1.0, 0.0),
+                                         Vec(1.5, 0.5),
+                                         Vec(0.5, 1.0),
+                                         Vec(-.5, 0.5)])]
+        for shape in self.shapes:
+            for vertex in shape.vertices:
+                vertex.x = vertex.x*100 + 100
+                vertex.y = vertex.y*100 + 100
 
-        self.poly2 = Polygon(colour=(0, 255, 0),
-                             vertices=[Vec(1, 2),
-                                       Vec(2, 2),
-                                       Vec(2, 1),
-                                       Vec(1, 1)])
+        print(self.shapes)
 
     def on_draw(self):
         self.clear()
-        x = 100
-        y = 100
-        sx = 100
-        sy = 100
+        messages = []
 
-        for p, c in (self.poly1, self.poly2):
+        # Collide shapes.
+        def collide_all(shapes):
+            if len(shapes) <= 1:
+                return
+
+            for shape in shapes[1:]:
+                if collide(shape, shapes[0]):
+                    messages.append('Collision!')
+
+            return collide_all(shapes[1:])
+        collide_all(self.shapes)
+
+        # Draw shapes.
+        for p, c in self.shapes:
             L = len(p)
-            verts = list(flatten(map(lambda v: (v[0]*sx + x, v[1]*sy + y), p)))
-            vl = pyglet.graphics.vertex_list(L, ('v2f', verts),
+            vl = pyglet.graphics.vertex_list(L, ('v2f', tuple(flatten(p))),
                                                 ('c3B', c * L))
             vl.draw(pyglet.gl.GL_POLYGON)
 
-        if collide_along(self.axis, self.poly1, self.poly2):
-            pyglet.graphics.vertex_list(3, ('v2f', [0, 50, 50, 50, 50, 0]),
-                                           ('c3B', [255, 0, 255] * 3)
-                                       ).draw(pyglet.gl.GL_TRIANGLES)
+        # Draw message.
+        pyglet.text.Label('    '.join(messages),
+                          font_name='Sans',
+                          font_size=24,
+                          y=self.height,
+                          anchor_y='top').draw()
 
-        if collide(self.poly1, self.poly2):
-            pyglet.graphics.vertex_list(3, ('v2f', [0, 0, 0, 50, 50, 0]),
-                                           ('c3B', [0, 255, 255] * 3)
-                                       ).draw(pyglet.gl.GL_TRIANGLES)
-
-        # draw axis
-        pyglet.graphics.vertex_list(
-                2,
-                ('v2f', [100, 100, self.axis.x*sx + x, self.axis.y*sy + y]),
-                ('c3B', [0, 0, 255] * 2)
-                ).draw(pyglet.gl.GL_LINES)
-
-    def on_mouse_motion(self, x, y, dx_, dy_):
-        if self.control_vertex:
-            self.poly2.vertices[2] = Vec(x=(x - 100) / 100, y=(y - 100) / 100)
-        
-        if self.control_normal:
-            self.axis = Vec(y=-(x - 100) / 100, x=(y - 100) / 100)
+    def on_mouse_motion(self, x, y, dx, dy):
+        if self.selection is not None:
+            for vertex in self.shapes[self.selection].vertices:
+                vertex.x += dx
+                vertex.y += dy
 
     def on_key_press(self, symbol, modifiers):
-        if symbol == pyglet.window.key.S:
-            self.axis = Vec(x=float(input('X:')), y=float(input('Y:')))
-
-        elif symbol == pyglet.window.key.M:
-            self.control_vertex = not self.control_vertex
-
-        elif symbol == pyglet.window.key.N:
-            self.control_normal = not self.control_normal
-
-        elif symbol == pyglet.window.key.L:
-            self.axis = poly2[2] - poly2[0]
-            self.axis.x, self.axis.y = self.axis.y, -self.axis.x
-
-        elif symbol == pyglet.window.key.P:
-            print(poly2[2], poly2[1] - poly2[2])
-
-        elif symbol == pyglet.window.key.F:
-            self.axis = Vec() - self.axis
-
-        elif symbol == pyglet.window.key.Y:
-            polygon1_projected = map(lambda vertex: self.axis.dot(vertex), poly1)
-            polygon2_projected = map(lambda vertex: self.axis.dot(vertex), poly2)
-            p1_min, p1_max = min_max(polygon1_projected)
-            p2_min, p2_max = min_max(polygon2_projected)
-            print(p1_min, p1_max, p2_min, p2_max)
-
+        if symbol == pyglet.window.key._0:
+            self.selection = None
+        elif symbol == pyglet.window.key._1:
+            self.selection = 0
+        elif symbol == pyglet.window.key._2:
+            self.selection = 1
+        elif symbol == pyglet.window.key._3:
+            self.selection = 2
         else:
             super().on_key_press(symbol, modifiers)
 
 window = Window(resizable=True)
 pyglet.app.run()
-#print(
-#collide(Polygon([Vec(0, 0), Vec(1, 0), Vec(0, 1)]),
-#        Polygon([Vec(2, 2), Vec(3, 2), Vec(2, 3)]))
-#        )

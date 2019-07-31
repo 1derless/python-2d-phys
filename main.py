@@ -9,28 +9,49 @@ from pyglet.window import key
 
 from base import *
 from phys import *
+from collision import *
 
 
 class DrawableWorld(PhysWorld):
     def draw(self):
-        for o in self._objects:
-            # Draw objects:
-            rect = Rect(x=o.pos.x, y=o.pos.y, w=200*o.mass, h=400*o.mass,
-                        angle=o.ang)
-
-            verts = pyglet.graphics.vertex_list_indexed(
-                4, (0, 1, 2, 0, 2, 3),
-                ('v2f', rect.get_vertices_flat())
-            )
-            verts.draw(pyglet.gl.GL_TRIANGLES)
-
         # Draw springs.
         for s in self._springs:
+            if s.slack:
+                colour = (0, 0, 255)
+            else:
+                colour = (0, 255, 0)
+
             pyglet.graphics.draw(2, pyglet.gl.GL_LINES,
                 ('v2f', tuple(s.get_end1_join_pos() + s.end1.pos)
                       + tuple(s.get_end2_join_pos() + s.end2.pos)
-                )
+                ),
+                ('c3B', colour * 2)
             )
+
+        # Test for collision between the objects (yes => turn red).
+        polygons = tuple(map(lambda o: Rect(x=o.pos.x,
+                                      y=o.pos.y,
+                                      w=200*o.mass,
+                                      h=400*o.mass,
+                                      angle=o.ang,
+                                      colour=(200, 255, 255)
+                                      ).get_poly(),
+                       self._objects))
+
+        def callback(o1, o2):
+            o1.colour = (255, 0, 0)
+            o2.colour = (255, 0, 0)
+        collide_all(polygons, callback=callback)
+
+        # Draw polygons.
+        for verts, colour in polygons:
+            n_verts = len(verts)
+            pyglet.graphics.draw(
+                    n_verts,
+                    pyglet.gl.GL_POLYGON,
+                    ('v2f', tuple(flatten(verts))),
+                    ('c3B', colour * n_verts)
+                    )
 
 
 class Window(pyglet.window.Window):
@@ -58,10 +79,10 @@ class Window(pyglet.window.Window):
                          end1_join_pos=Vec(-10, 20))
 
         self.phys_world = DrawableWorld()
-        self.phys_world.gravity.y = -9.81
+        #self.phys_world.gravity.y = -9.81
         self.phys_world.add_obj(self.p, point2)
         self.phys_world.add_spring(self.s, spring1, spring2)
-        
+
         pyglet.clock.schedule_interval(self.periodic_update, 1/120)
         #pyglet.clock.schedule(self.periodic_update)
 
@@ -75,7 +96,7 @@ class Window(pyglet.window.Window):
 
     def on_mouse_motion(self, x, y, _dx, _dy):
         self.mouse_pin.relocate(Vec(x, y))
-    
+
     def on_key_press(self, symbol, modifiers):
         if symbol == key.G:
             self.force_gc = not self.force_gc
