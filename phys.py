@@ -127,6 +127,24 @@ class Pin(Projectile):
      This is as the `Pin` ignores messages to move itself that seem to
      come form a `PhysWorld` (ie that are sent using `Pin.pos = ...`).
     """
+
+    class PinnedVec(Vec):
+        def __iadd__(self, other):
+            return self
+
+        def __isub__(self, other):
+            return self
+
+        def __imul__(self, other: float):
+            return self
+
+        def __itruediv__(self, other: float):
+            return self
+
+        def rotate_inplace(self, other):
+            pass
+
+
     @property
     def pos(self):
         return self._pos
@@ -136,11 +154,12 @@ class Pin(Projectile):
         pass
 
     def __init__(self, pos):
+        pos = self.PinnedVec(x=pos.x, y=pos.y)
         super().__init__(pos=pos, mass=float('inf'))
         self.relocate(pos)
 
     def relocate(self, value):
-        self._pos = value
+        self._pos = self.PinnedVec(x=value.x, y=value.y)
 
 
 class Spring:

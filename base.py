@@ -25,7 +25,7 @@ def flatten(iterable):
     return itertools.chain.from_iterable(iterable)
 
 
-def min_max(iterable):
+def min_max(iterable, key=lambda x: x):
     """Find the minimum and maximum of a single iterable."""
     iterable = iter(iterable)
     try:
@@ -34,10 +34,10 @@ def min_max(iterable):
         raise ValueError("min_max() arg is an empty sequence")
 
     for item in iterable:
-        if min_ > item:
+        if min_ > key(item):
             min_ = item
 
-        if max_ < item:
+        if max_ < key(item):
             max_ = item
 
     return min_, max_
@@ -96,6 +96,12 @@ class Vec:
         self.x /= other
         self.y /= other
         return self
+
+    def __pos__(self):
+        return self
+
+    def __neg__(self):
+        return Vec() - self
 
     def __getitem__(self, i):
         if i == 0:
