@@ -6,6 +6,60 @@ from base import *
 from collision import *
 
 
+def get_support(n, poly):
+    return max(poly, key=lambda v: v.dot(n))
+
+
+def get_separation(p1, p2):
+    biggest_d = float('-inf')
+    normal = Vec(0, 0)
+    for i in range(len(p1)):
+        # Find this edge.
+        j = (i + 1) % len(p1)
+        edge = p1[i] - p1[j]
+        n = Vec(x=-edge.y, y=edge.x)
+        n = n / abs(n)     # Normalise n.
+
+        # Find support point of p2 along -n.
+        s = get_support(-n, p2)
+        # Find distance of support point from edge.
+        d = n.dot(s - p1[i])
+
+        # Keep track of deepest support point.
+        if d > biggest_d:
+            biggest_d = d
+            normal = n
+
+    return  biggest_d, normal
+
+
+def collide(p1, p2):
+    sep1 = get_separation(p1, p2) 
+    sep2 = get_separation(p2, p1) 
+
+    if sep1[0] > sep2[0]:
+        return sep1
+    else:
+        # Invert normal so that it always points away from p1 and
+        # towards p2.
+        return (sep2[0], -sep2[1])
+
+
+def collide_point(s, p1):
+    biggest_d = float('-inf')
+    for i in range(len(p1)):
+        j = (i + 1) % len(p1)
+        side = p1[i] - p1[j]
+        n = Vec(x=-side.y, y=side.x)
+
+        d = n.dot(s - p1[i])
+
+        if d > biggest_d:
+            biggest_d = d
+
+    return biggest_d
+
+
 #def collide_along(direction, polygon1, polygon2):
     #if isinstance(polygon1, Polygon):
         #polygon1 = polygon1.vertices
@@ -70,17 +124,17 @@ class Window(pyglet.window.Window):
                                       Vec(1, 0),
                                       Vec(1, 1),
                                       Vec(0, 1)]),
-                            ]
-                       #Poly(colour=(0, 0, 255),
-                       #     vertices=[Vec(0.0, 0.0),
-                       #               Vec(1.0, 0.0),
-                       #               Vec(1.5, 0.5),
-                       #               Vec(0.5, 1.0),
-                       #               Vec(-.5, 0.5)])]
+                            #]
+                       Poly(colour=(0, 0, 255),
+                            vertices=[Vec(0.0, 0.0),
+                                      Vec(1.0, 0.0),
+                                      Vec(1.5, 0.5),
+                                      Vec(0.5, 1.0),
+                                      Vec(-.5, 0.5)])]
         for shape in self.shapes:
             for vertex in shape.vertices:
-                vertex.x = vertex.x*100 + 100
-                vertex.y = vertex.y*100 + 100
+                vertex.x = vertex.x*100 + 100 + random.random()
+                vertex.y = vertex.y*100 + 100 + random.random()
 
         print(self.shapes)
 
@@ -88,8 +142,7 @@ class Window(pyglet.window.Window):
         try:
             self.on_draw_()
         except Exception as e:
-            import traceback
-            traceback.print_exc(e)
+            #assert False
             print(e)
             raise e
 
@@ -103,18 +156,18 @@ class Window(pyglet.window.Window):
                 return
 
             for shape in shapes[1:]:
-                if collide(shape, shapes[0]) is not None:
-                    a = collide(shape, shapes[0])
+                separation, axis = collide(shape.vertices, shapes[0].vertices)
+                if separation < 0:
                     messages.append('Collision!')
                     pyglet.graphics.draw(2, pyglet.gl.GL_LINES,
                             ('v2f', [self.mouse[0],
                                      self.mouse[1],
-                                     self.mouse[0] + a.x,
-                                     self.mouse[1] + a.y]
+                                     self.mouse[0] + 100*axis.x,
+                                     self.mouse[1] + 100*axis.y]
                             ))
 
             return collide_all(shapes[1:])
-        #collide_all(self.shapes)
+        collide_all(self.shapes)
 
         # Draw shapes.
         for p, c in self.shapes:
@@ -123,73 +176,13 @@ class Window(pyglet.window.Window):
                                                 ('c3B', c * L))
             vl.draw(pyglet.gl.GL_POLYGON)
 
-        #def new_collide(p1, p2):
-        #    biggest_d = float('-inf')
-        #    for i in range(len(p1)):
-        #        n = p1[i] - p1[(i + 1) % len(p1)]
-        #        #n = Vec(x=-1, y=0)
-        #        #s = max(map(lambda v: ((-n).dot(v), v),
-        #        s = min(map(lambda v: (v.dot(n), v),
-        #                    p2),
-        #                key=lambda t: t[0])[1]
-        #        d = n.dot(s - p1[i])
-
-        #        if d > biggest_d:
-        #            biggest_d = d
-
-        #    #print(biggest_d)
-
-        def new_collide(s, p1):
-            biggest_d = float('-inf')
-            for i in range(len(p1)):
-                j = (i + 1) % len(p1)
-                side = p1[i] - p1[j]
-                n = Vec(x=-side.y, y=side.x)
-                #n = Vec(x=-1, y=0)
-                #s = max(map(lambda v: ((-n).dot(v), v),
-                #s = min(map(lambda v: (v.dot(n), v),
-                #            p2),
-                #        key=lambda t: t[0])[1]
-                d = n.dot(s - p1[i])
-
-                if d > biggest_d:
-                    biggest_d = d
-
-            return biggest_d
-
-        if self.selection is not None:
-            from itertools import product
-
-            #points = filter(lambda t: new_collide(Vec(*t), self.shapes[self.selection].vertices) > 0,
-            #                product(range(self.width), range(self.height)))
-            #points = list(flatten(points))
-            #pyglet.graphics.draw(len(points) // 2, pyglet.gl.GL_POINTS, ('v2f', points))
-
-            points = list(flatten(product(range(self.width), range(self.height))))
-
-            colours = list(map(lambda t: new_collide(Vec(*t), self.shapes[self.selection].vertices),
-                               product(range(self.width), range(self.height))))
-
-            min_ = min(colours)
-            max_ = max(colours)
-            #colours = [(0, int(c * 255 / min_), 0) if c < 0 else (0, 0, int(c * 255 / max_)) for c in colours]
-
-            colours = list(map(lambda c: (int((c - min_) / max_ * 255), ) * 3, colours))
-            pyglet.graphics.draw(len(points) // 2, pyglet.gl.GL_POINTS,
-                    ('v2f', points),
-                    ('c3B', list(flatten(colours))))
-
-
-        #if new_collide(self.shapes[0].vertices, self.shapes[1].vertices):
-            #/ 2**1/2
-        #    pass
-
         # Draw message.
-        pyglet.text.Label('    '.join(messages),
-                          font_name='Sans',
-                          font_size=24,
-                          y=self.height,
-                          anchor_y='top').draw()
+        for i, message in enumerate(messages):
+            pyglet.text.Label(str(message),
+                              font_name='Sans',
+                              font_size=24,
+                              y=self.height - i * 30,
+                              anchor_y='top').draw()
 
     def on_mouse_motion(self, x, y, dx, dy):
         self.mouse = x, y
@@ -206,8 +199,8 @@ class Window(pyglet.window.Window):
             self.selection = 0
         elif symbol == pyglet.window.key._2:
             self.selection = 1
-        elif symbol == pyglet.window.key._3:
-            self.selection = 2
+        # elif symbol == pyglet.window.key._3:
+        #     self.selection = 2
         else:
             super().on_key_press(symbol, modifiers)
 
