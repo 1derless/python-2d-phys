@@ -10,9 +10,32 @@ from pyglet.window import key
 from base import *
 from phys import *
 from collision import *
+from colliding_world import *
 
 
-class DrawableWorld(PhysWorld):
+class Entity(PhysObj, Collider):
+    def __init__(self, pos, mass, ang, moi, vertices, colour=(255, 255, 255)):
+        super().__init__(pos, mass, ang, moi)
+
+        self.vertices = vertices
+        self.colour = colour
+
+    def get_vertices(self):
+        return [vertex.rotate(self.ang) + self.pos for vertex in self.vertices]
+
+
+class FrozenEntity(Pin, Collider):
+    def __init__(self, pos, vertices, colour=(255, 255, 255)):
+        super().__init__(pos)
+
+        self.vertices = vertices
+        self.colour = colour
+
+    def get_vertices(self):
+        return [vertex + self.pos for vertex in self.vertices]
+
+
+class DrawableWorld(CollidingWorld):
     def draw(self):
         # Draw springs.
         for s in self._springs:
@@ -28,35 +51,14 @@ class DrawableWorld(PhysWorld):
                 ('c3B', colour * 2)
             )
 
-        # Test for collision between the objects (yes => turn red).
-        polygons = tuple(map(lambda o: Rect(x=o.pos.x,
-                                      y=o.pos.y,
-                                      w=200 * min(o.mass, 1),
-                                      h=400 * min(o.mass, 1),
-                                      angle=o.ang,
-                                      colour=(200, 255, 255)
-                                      ).get_poly(),
-                       self._objects))
-
-        def callback(o1, o2, axis=None):
-            print(axis)
-            #input()
-            o1.colour = (255, 0, 0)
-            o2.colour = (255, 0, 0)
-            
-            for v in o1.vertices:
-                v -= axis / 1#00_000
-        collide_all(polygons, callback=callback)
-
         # Draw polygons.
-        for verts, colour in polygons:
+        for obj in self._objects:
+            verts = obj.get_vertices()
             n_verts = len(verts)
-            pyglet.graphics.draw(
-                    n_verts,
-                    pyglet.gl.GL_POLYGON,
+            pyglet.graphics.draw(n_verts, pyglet.gl.GL_POLYGON,
                     ('v2f', tuple(flatten(verts))),
-                    ('c3B', colour * n_verts)
-                    )
+                    ('c3B', obj.colour * n_verts)
+            )
 
 
 class Window(pyglet.window.Window):
@@ -67,55 +69,95 @@ class Window(pyglet.window.Window):
         self.force_gc = False
         self.time = 0
 
-        #self.p = PhysObj(pos=Vec(x=500, y=450), mass=0.5, ang=0,
-        #                   moi=0.5 * (100**2 + 200**2) / 12)
-        #point2 = PhysObj(pos=Vec(x=300, y=300), mass=0.1, ang=0,
-        #                   moi=0.1 * (100**2 + 200**2) / 12)
-
-        #self.pin = Pin(pos=Vec(450, 400))
-        #self.mouse_pin = Pin(pos=Vec(450, 400))
-
-        #self.s = Spring(stiffness=0.99, end1=self.mouse_pin, end2=self.p,
-        #                slack_length=100, end2_join_pos=Vec(50, 100))
-
-        #spring1 = Spring(stiffness=0.75, end1=self.p, end2=point2,
-        #                 end1_join_pos=Vec(-50, -100))
-        #spring2 = Spring(stiffness=0.45, end1=point2, end2=self.pin,
-        #                 end1_join_pos=Vec(-10, 20))
-
-        #self.phys_world = DrawableWorld()
-        #self.phys_world.gravity.y = -9.81
-        #self.phys_world.add_obj(self.p, point2)
-        #self.phys_world.add_spring(self.s, spring1, spring2)
+        self.obj1 = Entity(
+           pos=Vec(450, 250),
+           mass=0.5,
+           ang=3.141593 / 4,
+           moi=1000,
+           colour=(0, 0, 255),
+           vertices=[
+               Vec(x=-50., y=-50.),
+               Vec(x= 50., y=-50.),
+               Vec(x= 50., y= 50.),
+               Vec(x=-50., y= 50.),
+             ]
+            )
 
         self.phys_world = DrawableWorld()
         self.phys_world.gravity.y = -9.81
-        self.phys_world.add_obj(Pin(pos=Vec(x=450, y=400)),
-                                PhysObj(pos=Vec(450, 900), mass=0.5, ang=0,
-                                        moi=1000))
+        self.phys_world.add_obj(
+            self.obj1,
+            Entity(pos=Vec(250, 200), mass=0.5, ang=0, moi=1000,
+                   colour=(0, 255, 0),
+                   vertices=[Vec(x=-50., y=-50.),
+                             Vec(x= 50., y=-50.),
+                             Vec(x= 50., y= 50.),
+                             Vec(x=-50., y= 50.),
+                             ]),
+            FrozenEntity(pos=Vec(450, 50),
+                   vertices=[Vec(x=-100., y=-25.),
+                             Vec(x= 100., y=-25.),
+                             Vec(x= 100., y= 25.),
+                             Vec(x=-100., y= 25.),
+                             ]),
+        )
+        self.phys_world._objects[0].vel = Vec(x=-100, y=0)
+        self.phys_world._objects[1].vel = Vec(x= 100, y=0)
 
-        pyglet.clock.schedule_interval(self.periodic_update, 1/120)
-        #pyglet.clock.schedule(self.periodic_update)
+
+        import random
+        for _ in range(4):
+            self.phys_world.add_obj(
+                Entity(
+                   pos=Vec(random.randint(0, 600), random.randint(450, 650)),
+                   mass=0.5,
+                   ang=3.141593 / 4,
+                   moi=1000,
+                   colour=(random.randint(63, 255),) * 3,
+                   vertices=[
+                       Vec(x=-50., y=-50.),
+                       Vec(x= 50., y=-50.),
+                       Vec(x= 50., y= 50.),
+                       Vec(x=-50., y= 50.),
+                       ]
+                    )
+                )
+            
+
+
+        #pyglet.clock.schedule_interval(self.periodic_update, 1/120)
+        pyglet.clock.schedule(self.periodic_update)
 
     def periodic_update(self, dt):
-        self.time += 1/120#dt
-
-        #self.mouse_pin.relocate(Vec(x=500 + 250*math.cos(self.time),
-        #                            y=750 - 250*math.sin(self.time)))
+        self.time += dt
 
         self.phys_world.update(dt)
-        #print(self.phys_world._objects[0].pos)
+        for obj in self.phys_world._objects:
+            obj.pos.x %= self.width
+            obj.pos.y %= self.height
 
     def on_mouse_motion(self, x, y, _dx, _dy):
-        self.mouse_pin.relocate(Vec(x, y))
+        #self.mouse_pin.relocate(Vec(x, y))
+        self.obj1.pos = Vec(x, y)
+        self.obj1.vel = Vec(0, 0)
+        pass
 
     def on_key_press(self, symbol, modifiers):
         if symbol == key.G:
             self.force_gc = not self.force_gc
+        elif symbol == key.SPACE:
+            for obj in self.phys_world._objects:
+                obj.vel = Vec(0, 0)
         else:
             super().on_key_press(symbol, modifiers)
 
     def on_draw(self):
+        try:
+            self.on_draw_()
+        except Exception as e:
+            raise e
+
+    def on_draw_(self):
         self.clear()
         self.phys_world.draw()
         #print(pyglet.clock.get_fps(), end="      \r")

@@ -60,7 +60,6 @@ class PhysWorld:
     def update_spring(self, dt):
         # Calculate spring forces and apply them.
         for spring in self._springs:
-            # Compute force.
             length = spring.end2.pos + spring.get_end2_join_pos() \
                      - spring.end1.pos - spring.get_end1_join_pos()
 
@@ -72,6 +71,7 @@ class PhysWorld:
             else:
                 spring.slack = False
 
+            # Compute force using Hooke's law.
             extention = length * (abs_length - spring.slack_length) \
                         / abs_length
             force = extention * spring.stiffness
@@ -100,14 +100,14 @@ class PhysWorld:
 
     def update_turn(self, dt):
         for obj in self._objects:
-            # Calculate new oreintation using Velocity Verlet.
+            # Calculate new orientation using Velocity Verlet.
             obj.ang_vel += (obj.ang_acc + obj.new_ang_acc) * dt / 2
             obj.ang_acc = obj.new_ang_acc
             obj.ang += obj.ang_vel*dt + obj.new_ang_acc*dt*dt/2
             obj.new_ang_acc = 0
 
     def get_state(self):
-        """Get the positions and velocities of al objects in self."""
+        """Get the positions and velocities of all objects in self."""
         return "".join(flatten(
                         ("obj p=", str(obj.pos), " v=", str(obj.vel), "\n")
                         for obj in self._objects))
@@ -143,7 +143,6 @@ class Pin(Projectile):
 
         def rotate_inplace(self, other):
             pass
-
 
     @property
     def pos(self):

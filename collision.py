@@ -1,78 +1,120 @@
 from base import *
 
-__all__ = ['collide_along', 'collide', 'collide_all']
+__all__ = ['Collider',
+           'get_support',
+           'get_separation', 'collide', 'collide_point',
+           'collide_all',
+           'get_intersector']
 
 
-def collide_along(direction, polygon1, polygon2):
-    #if isinstance(polygon1, Poly):
-    #    polygon1 = polygon1.vertices
-    #if isinstance(polygon2, Poly):
-    #    polygon2 = polygon2.vertices
+class Collider:
+    def __init__(self, vertices):
+        self.vertices = vertices
+    
+    def get_vertices(self):
+        return tuple(self.vertices)
 
-    # Calculate support points.
-    polygon1_projected = map(lambda vertex: direction.dot(vertex), polygon1)
-    polygon2_projected = map(lambda vertex: direction.dot(vertex), polygon2)
-    p1_min, p1_max = min_max(polygon1_projected)
-    p2_min, p2_max = min_max(polygon2_projected)
 
-    print(f'Seps: {p1_max - p2_min, p2_max - p1_min}')
-    if p1_min > p2_max:
-        #print(f'Separated by {p1_min - p2_max}.')
-        # There is no penetration.
-        return None
-    elif p1_max < p2_min:
-        #print(f'Separated by {p2_min - p1_max}.')
-        return None
+def get_support(n, poly):
+    return max(poly, key=lambda v: v.dot(n))
+
+
+def get_separation(p1, p2):
+    highest_d = float('-inf')
+    normal = Vec(0, 0)
+    for i in range(len(p1)):
+        # Find this edge.
+        j = (i + 1) % len(p1)
+        edge = p1[i] - p1[j]
+        n = Vec(x=-edge.y, y=edge.x)
+        n = n / abs(n)     # Normalise n.
+
+        # Find support point of p2 along -n.
+        s = get_support(-n, p2)
+        # Find distance of support point from edge.
+        d = n.dot(s - p1[i])
+
+        # Keep track of shallowest depth.
+        if d > highest_d:
+            highest_d = d
+            normal = n
+
+    return  highest_d, normal
+
+
+def collide(p1, p2):
+    sep1 = get_separation(p1, p2) 
+    sep2 = get_separation(p2, p1) 
+
+    if sep1[0] > sep2[0]:
+        return sep1
     else:
-        # Return minimum penetration.
-        return min(p1_max - p2_min, p2_max - p1_min)
+        # Invert normal so that it always points away from p1 and
+        # towards p2.
+        return (sep2[0], -sep2[1])
 
 
-def collide(polygon1, polygon2):
-    # Work out which axes need to be tested against.
-    test_axes = []
-    for polygon in (polygon1.vertices, polygon2.vertices):
-        for v1, v2 in zip(polygon, polygon[1:]):
-            side = v2 - v1
-            normal = Vec(x=-side.y, y=side.x)
-            test_axes.append(normal)
-        side = polygon[-1] - polygon[0]
-        normal = Vec(x=side.y, y=-side.x)
-        test_axes.append(normal)
+def collide_point(s, p1):
+    biggest_d = float('-inf')
+    for i in range(len(p1)):
+        j = (i + 1) % len(p1)
+        side = p1[i] - p1[j]
+        n = Vec(x=-side.y, y=side.x)
 
-    # Test the polygons against the determined axes and record the axis along
-    # which the polygongs interpenetrate the smallest amount.
-    least_penetration = float('inf')
-    axis_of_least_penetration = None
-    for axis in test_axes:
-        axis_norm = axis / abs(axis)
-        penetration = collide_along(axis_norm, polygon1.vertices, polygon2.vertices)
+        d = n.dot(s - p1[i])
 
-        # Return if an axis of separation was found.
-        if penetration is None:
-            return None
+        if d > biggest_d:
+            biggest_d = d
 
-        elif penetration < least_penetration:
-            least_penetration = penetration
-            axis_of_least_penetration = axis_norm
-
-        #print('Axis:', axis_of_least_penetration, 'Depth:', penetration)
-
-    # Test the polygons against the determined axes.
-    #           all(map(lambda axis: collide_along(axis,
-    #                                                   polygon1.vertices,
-    #                                                   polygon2.vertices),
-    #                   test_axes))
-    return axis_of_least_penetration * penetration
+    return biggest_d
 
 
-def collide_all(shapes, callback):
-    if len(shapes) <= 1:
-        return
+def collide_all(colliders, callback):
+    polys = [c.get_vertices() for c in colliders]
 
-    for shape in shapes[1:]:
-        penetration_axis = collide(shapes[0], shape)
-        if penetration_axis is not None:
-           callback(shapes[0], shape, axis=penetration_axis)
+    for start in range(len(colliders) - 1):
+        head = polys[start]
+        tail = polys[start + 1:]
 
-    return collide_all(shapes[1:], callback)
+        for i, poly in enumerate(tail):
+            separation, axis = collide(head, poly)
+            if separation < 0.0:
+               callback(colliders[start],
+                        colliders[start + 1 + i],
+                        separation=separation,
+                        axis=axis)
+
+
+def get_intersector(p1, p2, axis):
+    p1_sorted = sorted(p1, key=lambda v: v.dot(-axis))
+
+    # Find the first point that collides with p2.
+    for s1 in p1_sorted:
+        depth = collide_point(s1, p2)
+        if depth < 0.0:
+            break
+    else:
+        s1 = None
+
+    p2_sorted = sorted(p2, key=lambda v: v.dot(axis))
+
+    # Find the first point that collides with p1.
+    for s2 in p2_sorted:
+        depth = collide_point(s2, p1)
+        if depth < 0.0:
+            break
+    else:
+        s2 = None
+    
+    if s1 is None:
+        if s2 is None:
+            # Only edges intersect - guess a reasonable point.
+            return p1_sorted[0]
+        else:
+            return s2
+    elif s2 is None:
+        return s1
+    elif s1.dot(axis) > s2.dot(-axis):
+        return s1
+    else:
+        return s2
