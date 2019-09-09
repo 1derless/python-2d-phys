@@ -90,7 +90,8 @@ class PhysWorld:
     def update_move(self, dt):
         for obj in self._objects:
             # Apply gravity.
-            obj.new_acc += self.gravity
+            if obj.mass != float('inf'):
+                obj.new_acc += self.gravity
 
             # Calculate new position using Velocty Verlet.
             obj.vel += (obj.acc + obj.new_acc) * dt / 2

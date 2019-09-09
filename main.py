@@ -72,41 +72,70 @@ class Window(pyglet.window.Window):
         self.obj1 = Entity(
            pos=Vec(450, 250),
            mass=0.5,
-           ang=3.141593 / 4,
-           moi=1000,
+           ang=3.141593 / 3,
+           moi=500,
            colour=(0, 0, 255),
            vertices=[
                Vec(x=-50., y=-50.),
+               #Vec(x= 50., y=-50.),
                Vec(x= 50., y=-50.),
-               Vec(x= 50., y= 50.),
-               Vec(x=-50., y= 50.),
+               Vec(x=  0., y= 50.),
+             ]
+            )
+        self.obj2 = Entity(
+           pos=Vec(450, 150),
+           mass=0.5,
+           ang=0.0,
+           moi=100,
+           colour=(255, 0, 255),
+           vertices=[
+               Vec(x=-50., y=-50.),
+               #Vec(x= 50., y=-50.),
+               Vec(x= 50., y=-50.),
+               Vec(x=  0., y= 50.),
              ]
             )
 
         self.phys_world = DrawableWorld()
-        self.phys_world.gravity.y = -9.81
+        self.phys_world.gravity.y = -100
         self.phys_world.add_obj(
             self.obj1,
-            Entity(pos=Vec(250, 200), mass=0.5, ang=0, moi=1000,
-                   colour=(0, 255, 0),
-                   vertices=[Vec(x=-50., y=-50.),
-                             Vec(x= 50., y=-50.),
-                             Vec(x= 50., y= 50.),
-                             Vec(x=-50., y= 50.),
-                             ]),
+        #    Entity(pos=Vec(250, 200), mass=0.5, ang=0, moi=1000,
+        #           colour=(0, 255, 0),
+        #           vertices=[Vec(x=-50., y=-50.),
+        #                     Vec(x= 50., y=-50.),
+        #                     Vec(x= 50., y= 50.),
+        #                     Vec(x=-50., y= 50.),
+        #                     ]),
+        #    Entity(pos=Vec(150, 200), mass=0.25, ang=0, moi=1000,
+        #           colour=(0, 255, 255),
+        #           vertices=[Vec(x=-50., y=-50.),
+        #                     #Vec(x= 50., y=-50.),
+        #                     Vec(x= 50., y= 50.),
+        #                     Vec(x=-50., y= 50.),
+        #                     ]),
             FrozenEntity(pos=Vec(450, 50),
-                   vertices=[Vec(x=-100., y=-25.),
-                             Vec(x= 100., y=-25.),
-                             Vec(x= 100., y= 25.),
-                             Vec(x=-100., y= 25.),
+                   vertices=[Vec(x=-9000., y=-25.),
+                             Vec(x= 9000., y=-25.),
+                             Vec(x= 9000., y= 25.),
+                             Vec(x=-9000., y= 25.),
                              ]),
+        #    self.obj2,
         )
-        self.phys_world._objects[0].vel = Vec(x=-100, y=0)
-        self.phys_world._objects[1].vel = Vec(x= 100, y=0)
+        #self.phys_world._objects[0].vel = Vec(x=-100, y=0)
+        #self.phys_world._objects[1].vel = Vec(x= 100, y=0)
+        #self.phys_world.add_spring(Spring(
+        #    stiffness=0.5,
+        #    end1=self.obj1,
+        #    end1_join_pos=Vec(x=0., y=50.),
+        #    end2=self.obj2,
+        #    end2_join_pos=Vec(x=0., y=50.),
+        #    )
+        #)
 
 
         import random
-        for _ in range(4):
+        for _ in range(10):
             self.phys_world.add_obj(
                 Entity(
                    pos=Vec(random.randint(0, 600), random.randint(450, 650)),
@@ -122,7 +151,7 @@ class Window(pyglet.window.Window):
                        ]
                     )
                 )
-            
+
 
 
         #pyglet.clock.schedule_interval(self.periodic_update, 1/120)
@@ -160,12 +189,12 @@ class Window(pyglet.window.Window):
     def on_draw_(self):
         self.clear()
         self.phys_world.draw()
-        #print(pyglet.clock.get_fps(), end="      \r")
+        print(pyglet.clock.get_fps(), end="      \r")
 
         if self.force_gc:
             gc.collect()
 
 
 if __name__ == '__main__':
-    window = Window(resizable=True, vsync=True, width=1000, height=1000)
+    window = Window(resizable=True, vsync=False, width=1000, height=1000)
     pyglet.app.run()
