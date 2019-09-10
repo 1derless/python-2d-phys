@@ -5,30 +5,35 @@ from phys import *
 __all__ = ['CollidingWorld']
 
 
-class CollidingWorld(PhysWorld):
-    def add_obj(self, *objs):
+class CollidingWorld(System):
+    def add_ent(self, *objs):
         for obj in objs:
             if not isinstance(obj, Collider):
                 raise TypeError(f"{obj} is not a Collider")
 
-            super().add_obj(obj)
+            super().add_ent(obj)
 
     def update(self, dt):
-        self.dampen(dt / 10)
+        self.dampen(dt)
         self.update_spring(dt)
         self.update_collision(dt)
         self.update_turn(dt)
         self.update_move(dt)
 
     def update_collision(self, dt):
-        bounce = 50.0
+
         def callback(o1, o2, separation, axis):
+            if o1.mass == float('inf') and o2.mass == float('inf'):
+                return
+
             n = axis  #Vec(x=-axis.y, y=axis.x)
             dv = o2.vel - o1.vel
 
             v_dot_n = dv.dot(n)
 
             if v_dot_n > 0.0:
+                # If the two objects are moving away from each other,
+                # then they are already going out of collision.
                 return
 
             # Find a point in space to apply the torque from.
@@ -39,13 +44,13 @@ class CollidingWorld(PhysWorld):
             pos_o2 = pos - o2.pos
 
             # Calculate scalar impulse.
-            e = 0.75   # coeff. of restitution
+            e = 0.5  # coeff. of restitution
             j = -(1 + e) * v_dot_n
             j /= 1/o1.mass + 1/o2.mass \
-                 + (abs(pos_o1) * dt)**2 / o2.moi \
+                 + (abs(pos_o1) * dt)**2 / o1.moi \
                  + (abs(pos_o2) * dt)**2 / o2.moi
 
-            # Apply impulse
+            # Apply impulse.
             # This ignores the velocity Verlet because collisions do not
             # apply steady or smooth forces.
             impulse = j * n
@@ -53,13 +58,24 @@ class CollidingWorld(PhysWorld):
             o2.vel += 1/o2.mass * impulse
 
             # Calculate torque.
-            normal = Vec(x=-impulse.y, y=impulse.x)
-            torque1 = pos_o1.cross(n)
-            torque2 = pos_o2.cross(n)
-            o1.ang_vel -= torque1 / o1.moi
-            o2.ang_vel += torque2 / o2.moi
+            torque1 = pos_o1.cross(impulse)
+            torque2 = pos_o2.cross(impulse)
+            o1.ang_vel -= torque1 * e / o1.moi
+            o2.ang_vel += torque2 * e / o2.moi
             o1.ang_vel = max(min(o1.ang_vel, 1), -1)
             o2.ang_vel = max(min(o2.ang_vel, 1), -1)
+
+
+            # Correct position for rounding errors.
+            if separation < -1:
+                correction = (-separation - 1) / (1/o1.mass + 1/o2.mass) * 0.1 * n
+                #o1.vel = max(1 / o1.mass * correction * dt, o1.vel, key=abs)
+                #o2.vel = max(1 / o2.mass * correction * dt, o2.vel, key=abs)
+                o1.pos -= 1 / o1.mass * correction
+                o2.pos += 1 / o2.mass * correction
+                #force = -separation * axis
+                #o1.new_acc -= force / o1.mass
+                #o2.new_acc += force / o2.mass
             '''
             return
 
@@ -88,4 +104,4 @@ class CollidingWorld(PhysWorld):
             o2.new_ang_acc -= torque / o2.moi
             '''
 
-        collide_all(self._objects, callback)
+        collide_all(self._entities, callback)

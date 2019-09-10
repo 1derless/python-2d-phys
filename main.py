@@ -6,14 +6,16 @@ import gc
 
 import pyglet
 from pyglet.window import key
+import easygui
 
 from base import *
 from phys import *
 from collision import *
 from colliding_world import *
+import load_system
 
 
-class Entity(PhysObj, Collider):
+class Entity(Entity, Collider):
     def __init__(self, pos, mass, ang, moi, vertices, colour=(255, 255, 255)):
         super().__init__(pos, mass, ang, moi)
 
@@ -52,7 +54,7 @@ class DrawableWorld(CollidingWorld):
             )
 
         # Draw polygons.
-        for obj in self._objects:
+        for obj in self._entities:
             verts = obj.get_vertices()
             n_verts = len(verts)
             pyglet.graphics.draw(n_verts, pyglet.gl.GL_POLYGON,
@@ -98,7 +100,7 @@ class Window(pyglet.window.Window):
 
         self.phys_world = DrawableWorld()
         self.phys_world.gravity.y = -100
-        self.phys_world.add_obj(
+        self.phys_world.add_ent(
             self.obj1,
         #    Entity(pos=Vec(250, 200), mass=0.5, ang=0, moi=1000,
         #           colour=(0, 255, 0),
@@ -115,10 +117,16 @@ class Window(pyglet.window.Window):
         #                     Vec(x=-50., y= 50.),
         #                     ]),
             FrozenEntity(pos=Vec(450, 50),
-                   vertices=[Vec(x=-9000., y=-25.),
-                             Vec(x= 9000., y=-25.),
+                   vertices=[Vec(x=-9000., y=-75.),
+                             Vec(x= 9000., y=-75.),
                              Vec(x= 9000., y= 25.),
                              Vec(x=-9000., y= 25.),
+                             ]),
+            FrozenEntity(pos=Vec(0, 0),
+                   vertices=[Vec(x= 500., y=-75.),
+                             Vec(x= 550., y=-75.),
+                             Vec(x=9050., y=1000.),
+                             Vec(x=9000., y=1000.),
                              ]),
         #    self.obj2,
         )
@@ -133,10 +141,9 @@ class Window(pyglet.window.Window):
         #    )
         #)
 
-
         import random
         for _ in range(10):
-            self.phys_world.add_obj(
+            self.phys_world.add_ent(
                 Entity(
                    pos=Vec(random.randint(0, 600), random.randint(450, 650)),
                    mass=0.5,
@@ -152,16 +159,21 @@ class Window(pyglet.window.Window):
                     )
                 )
 
-
-
         #pyglet.clock.schedule_interval(self.periodic_update, 1/120)
         pyglet.clock.schedule(self.periodic_update)
+
+        ###############
+        load_system.save('test_v2.dat', self.phys_world)
+        self.phys_world = load_system.load(easygui.fileopenbox())
+        #if version != 'version 1':
+        #    raise TypeError('Wrong version file')
+        ###############
 
     def periodic_update(self, dt):
         self.time += dt
 
         self.phys_world.update(dt)
-        for obj in self.phys_world._objects:
+        for obj in self.phys_world._entities:
             obj.pos.x %= self.width
             obj.pos.y %= self.height
 
@@ -175,7 +187,7 @@ class Window(pyglet.window.Window):
         if symbol == key.G:
             self.force_gc = not self.force_gc
         elif symbol == key.SPACE:
-            for obj in self.phys_world._objects:
+            for obj in self.phys_world._entities:
                 obj.vel = Vec(0, 0)
         else:
             super().on_key_press(symbol, modifiers)
@@ -187,8 +199,12 @@ class Window(pyglet.window.Window):
             raise e
 
     def on_draw_(self):
-        self.clear()
-        self.phys_world.draw()
+        #self.clear()
+        pyglet.graphics.draw(5, pyglet.gl.GL_POLYGON,
+            ('v2f', [0.0, 0.0,  self.width, 0.0,  self.width, self.height,  0.0, self.height,  0.0, 0.0]),
+            ('c4B', [0, 0, 0, 255] * 5)
+        )
+        DrawableWorld.draw(self.phys_world)
         print(pyglet.clock.get_fps(), end="      \r")
 
         if self.force_gc:

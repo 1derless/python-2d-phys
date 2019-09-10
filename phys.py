@@ -3,12 +3,12 @@
 from base import *
 
 
-__all__ = ['PhysWorld',
-           'PhysObj', 'Projectile', 'Pin',
+__all__ = ['System',
+           'Entity', 'Projectile', 'Pin',
            'Spring']
 
 
-class PhysObj:
+class Entity:
     """A basic physics object."""
     def __init__(self, pos, mass, ang, moi):
         self.pos = pos
@@ -17,27 +17,31 @@ class PhysObj:
         self.acc = Vec(x=0, y=0)
         self.new_acc = Vec()
 
-        # There is only one axis for roataion in 2D - the Z-axis.
+        # There is only one axis for rotation in 2D - the Z-axis.
         self.ang = ang
         self.ang_vel = 0
         self.ang_acc = 0
         self.new_ang_acc = 0
-        self.moi = moi  # Moment of intertia
+        self.moi = moi  # Moment of inertia
 
 
-class PhysWorld:
-    """A world to hold and simulate interaction of `PhysObj`s."""
+class System:
+    """A world to hold and simulate interaction of `Entity`s."""
     def __init__(self):
-        self._objects = []
+        self._entities = []
         self._springs = []
         self.gravity = Vec(0, 0)
 
-    def add_obj(self, *objs):
-        for obj in objs:
-            if not isinstance(obj, PhysObj):
-                raise TypeError(f"{obj} is not a PhysObj")
+    def add_ent(self, *entities):
+        for ent in entities:
+            if not isinstance(ent, Entity):
+                raise TypeError(f"{ent} is not an Entity")
 
-            self._objects.append(obj)
+            self._entities.append(ent)
+
+    def remove_ent(self, *entities):
+        for ent in entities:
+            self._entities.remove(ent)
 
     def add_spring(self, *springs):
         for spring in springs:
@@ -46,6 +50,10 @@ class PhysWorld:
 
             self._springs.append(spring)
 
+    def remove_spring(self, *springs):
+        for spring in springs:
+            self._springs.remove(spring)
+
     def update(self, dt):
         self.dampen(dt)
         self.update_spring(dt)
@@ -53,9 +61,9 @@ class PhysWorld:
         self.update_move(dt)
 
     def dampen(self, dt):
-        for obj in self._objects:
-            obj.vel -= obj.vel * 0.1 * dt
-            obj.ang_vel -= obj.ang_vel * 0.1 * dt
+        for ent in self._entities:
+            ent.vel -= ent.vel * 0.1 * dt
+            ent.ang_vel -= ent.ang_vel * 0.1 * dt
 
     def update_spring(self, dt):
         # Calculate spring forces and apply them.
@@ -72,9 +80,9 @@ class PhysWorld:
                 spring.slack = False
 
             # Compute force using Hooke's law.
-            extention = length * (abs_length - spring.slack_length) \
+            extension = length * (abs_length - spring.slack_length) \
                         / abs_length
-            force = extention * spring.stiffness
+            force = extension * spring.stiffness
 
             spring.end1.new_acc += force / spring.end1.mass
             spring.end2.new_acc -= force / spring.end2.mass
@@ -88,34 +96,34 @@ class PhysWorld:
             spring.end2.new_ang_acc -= torque2 / spring.end2.moi
 
     def update_move(self, dt):
-        for obj in self._objects:
+        for ent in self._entities:
             # Apply gravity.
-            if obj.mass != float('inf'):
-                obj.new_acc += self.gravity
+            if ent.mass != float('inf'):
+                ent.new_acc += self.gravity
 
-            # Calculate new position using Velocty Verlet.
-            obj.vel += (obj.acc + obj.new_acc) * dt / 2
-            obj.acc = obj.new_acc
-            obj.pos += obj.vel*dt + obj.new_acc*dt*dt/2
-            obj.new_acc = Vec(0, 0)
+            # Calculate new position using Velocity Verlet.
+            ent.vel += (ent.acc + ent.new_acc) * dt / 2
+            ent.acc = ent.new_acc
+            ent.pos += ent.vel*dt + ent.new_acc*dt*dt/2
+            ent.new_acc = Vec(0, 0)
 
     def update_turn(self, dt):
-        for obj in self._objects:
+        for ent in self._entities:
             # Calculate new orientation using Velocity Verlet.
-            obj.ang_vel += (obj.ang_acc + obj.new_ang_acc) * dt / 2
-            obj.ang_acc = obj.new_ang_acc
-            obj.ang += obj.ang_vel*dt + obj.new_ang_acc*dt*dt/2
-            obj.new_ang_acc = 0
+            ent.ang_vel += (ent.ang_acc + ent.new_ang_acc) * dt / 2
+            ent.ang_acc = ent.new_ang_acc
+            ent.ang += ent.ang_vel*dt + ent.new_ang_acc*dt*dt/2
+            ent.new_ang_acc = 0
 
     def get_state(self):
-        """Get the positions and velocities of all objects in self."""
+        """Get the positions and velocities of all entities in self."""
         return "".join(flatten(
-                        ("obj p=", str(obj.pos), " v=", str(obj.vel), "\n")
-                        for obj in self._objects))
+                        ("ent p=", str(ent.pos), " v=", str(ent.vel), "\n")
+                        for ent in self._entities))
 
 
-class Projectile(PhysObj):
-    """A PhysObj that has no rotation or width."""
+class Projectile(Entity):
+    """A Entity that has no rotation or width."""
     def __init__(self, pos, mass):
         super().__init__(pos, mass, ang=0, moi=float('inf'))
 
@@ -126,7 +134,7 @@ class Pin(Projectile):
     IMPORTANT NOTE:
      In order to move the pin, its `relocate` method must be used.
      This is as the `Pin` ignores messages to move itself that seem to
-     come form a `PhysWorld` (ie that are sent using `Pin.pos = ...`).
+     come form a `System` (ie that are sent using `Pin.pos = ...`).
     """
 
     class PinnedVec(Vec):
@@ -163,16 +171,16 @@ class Pin(Projectile):
 
 
 class Spring:
-    """A spring connecting two `PhysObj`s.
+    """A spring connecting two `Entity`s.
 
     stiffness - the spring constant.
-    end1 - an object attached to one end.
-    end2 - an object attached to the other end.
+    end1 - an entity attached to one end.
+    end2 - an entity attached to the other end.
     slack_length - the distance between end1 and end2 before the string
-        exherts any force (default=0).
-    end1_join_pos - the displacement from the centre of end1's object
+        exerts any force (default=0).
+    end1_join_pos - the displacement from the centre of end1's entity
          of that end of the spring (default=no displacement).
-    end2_join_pos - the displacement from the centre of end2's object
+    end2_join_pos - the displacement from the centre of end2's entity
          of that end of the spring(default=no displacement).
     """
     def __init__(self, stiffness, end1, end2, slack_length=0,
