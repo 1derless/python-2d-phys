@@ -60,6 +60,7 @@ def collide_point(s, p1):
         j = (i + 1) % len(p1)
         side = p1[i] - p1[j]
         n = Vec(x=-side.y, y=side.x)
+        n = n / abs(n)     # Normalise n.
 
         d = n.dot(s - p1[i])
 
