@@ -163,8 +163,8 @@ class Window(pyglet.window.Window):
         pyglet.clock.schedule(self.periodic_update)
 
         ###############
-        load_system.save('test_v2.dat', self.phys_world)
-        self.phys_world = load_system.load(easygui.fileopenbox())
+        #load_system.save('test_v2.dat', self.phys_world)
+        #self.phys_world = load_system.load(easygui.fileopenbox())
         #if version != 'version 1':
         #    raise TypeError('Wrong version file')
         ###############
