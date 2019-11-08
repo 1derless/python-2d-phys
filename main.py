@@ -78,10 +78,10 @@ class Window(pyglet.window.Window):
            moi=500,
            colour=(0, 0, 255),
            vertices=[
-               Vec(x=-50., y=-50.),
+               Vec(x=-50., y=-25.),
                #Vec(x= 50., y=-50.),
-               Vec(x= 50., y=-50.),
-               Vec(x=  0., y= 50.),
+               Vec(x= 50., y=-25.),
+               Vec(x=  0., y= 25.),
              ]
             )
         self.obj2 = Entity(
@@ -159,8 +159,8 @@ class Window(pyglet.window.Window):
                     )
                 )
 
-        #pyglet.clock.schedule_interval(self.periodic_update, 1/120)
-        pyglet.clock.schedule(self.periodic_update)
+        pyglet.clock.schedule_interval(self.periodic_update, 1/120)
+        #pyglet.clock.schedule(self.periodic_update)
 
         ###############
         #load_system.save('test_v2.dat', self.phys_world)
@@ -170,12 +170,17 @@ class Window(pyglet.window.Window):
         ###############
 
     def periodic_update(self, dt):
+        dt = 1 / 120
         self.time += dt
 
-        self.phys_world.update(dt)
+        for _ in range(10):
+            self.phys_world.update(dt / 10)
+
         for obj in self.phys_world._entities:
             obj.pos.x %= self.width
             obj.pos.y %= self.height
+
+        print(1/dt if dt > 0 else "No time.", end='\r')
 
     def on_mouse_motion(self, x, y, _dx, _dy):
         #self.mouse_pin.relocate(Vec(x, y))

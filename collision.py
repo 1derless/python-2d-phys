@@ -87,17 +87,19 @@ def collide_all(colliders, callback):
 
 
 def get_intersector(p1, p2, axis):
+    #'''
     intersecting_points = []
     intersecting_points += [p for p in p1 if collide_point(p, p2) < 0]
     intersecting_points.extend(filter(lambda p: collide_point(p, p1) < 0, p2))
 
     if len(intersecting_points) == 0:
-        return None
+        #return None
+        return max(p1, key=lambda p: collide_point(p, p2))
 
-    intersector = sum(intersecting_points, start=Vec(0, 0)) / len(intersecting_points)
+    intersector = sum(intersecting_points, Vec(0, 0)) / len(intersecting_points)
 
     return intersector
-
+    #'''
 
     p1_sorted = sorted(p1, key=lambda v: v.dot(-axis))
 
