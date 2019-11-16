@@ -59,12 +59,12 @@ class System:
             self.springs.remove(spring)
 
     def update(self, dt):
-        self.dampen(dt)
+        self.damp(dt)
         self.update_spring(dt)
         self.update_turn(dt)
         self.update_move(dt)
 
-    def dampen(self, dt):
+    def damp(self, dt):
         for ent in self.entities:
             ent.new_vel -= ent.vel * 0.1 * dt
             ent.ang_vel -= ent.ang_vel * 0.1 * dt

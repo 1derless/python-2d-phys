@@ -13,6 +13,7 @@ from base import *
 from phys import *
 from collision import *
 from colliding_world import *
+import gui
 import load_system
 
 test_material = Material(
@@ -69,6 +70,11 @@ class FrozenEntity(DrawCollider):
 
 
 class DrawableWorld(CollidingWorld):
+    def __init__(self):
+        super().__init__()
+
+        self.draw_impulses = True
+
     def draw(self):
         # Draw springs.
         for s in self.springs:
@@ -95,19 +101,20 @@ class DrawableWorld(CollidingWorld):
             )
 
         # Draw impulses.
-        for imp in self.imps:
-            if abs(imp[1]) < 1:
-                continue
+        if self.draw_impulses:
+            for imp in self.imps:
+                if abs(imp[1]) < 1:
+                    continue
 
-            k = 1000
-            pyglet.graphics.draw(2, pyglet.gl.GL_LINES,
-                ('v2f', (imp[0].x + imp[2].x,
-                         imp[0].y + imp[2].y,
-                         imp[0].x + imp[2].x + imp[1].x,
-                         imp[0].y + imp[2].y + imp[1].y)
-                ),
-                ('c3B', (255, 0, 0) * 2)
-            )
+                k = 1000
+                pyglet.graphics.draw(2, pyglet.gl.GL_LINES,
+                    ('v2f', (imp[0].x + imp[2].x,
+                             imp[0].y + imp[2].y,
+                             imp[0].x + imp[2].x + imp[1].x,
+                             imp[0].y + imp[2].y + imp[1].y)
+                    ),
+                    ('c3B', (255, 0, 0) * 2)
+                )
 
 
 class Window(pyglet.window.Window):
@@ -177,12 +184,21 @@ class Window(pyglet.window.Window):
     def on_key_press(self, symbol, modifiers):
         if symbol == key.G:
             self.force_gc = not self.force_gc
+
         elif symbol == key.SPACE:
             for obj in self.phys_world.entities:
                 obj.vel = Vec(0, 0)
                 obj.new_vel = Vec(0, 0)
                 obj.ang_vel = 0
                 obj.new_ang_vel = 0
+
+        elif symbol == key.M:
+            global test_material
+            test_material = gui.get_material()
+
+        elif symbol == key.D:
+            self.phys_world.draw_impulses = not self.phys_world.draw_impulses
+
         else:
             super().on_key_press(symbol, modifiers)
 

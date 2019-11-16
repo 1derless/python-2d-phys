@@ -28,6 +28,7 @@ class CollidingWorld(System):
     def __init__(self, gravity=Vec(0, 0)):
         super().__init__(gravity)
         self.imps = []  # Impulse tracking for the visualisation.
+        self.imps = []  # Impulse tracking for the visualisation.
 
     def add_ent(self, *objs):
         for obj in objs:
@@ -40,7 +41,7 @@ class CollidingWorld(System):
         import random; random.shuffle(self.entities)
         self.imps = [imp[:3] + [imp[3] - 1] for imp in self.imps if imp[3] > 0]
 
-        self.dampen(dt)
+        self.damp(dt)
         self.update_spring(dt)
         self.update_collision(dt)
         self.update_turn(dt)
