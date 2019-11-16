@@ -2,11 +2,33 @@ from base import *
 from collision import *
 from phys import *
 
-__all__ = ['CollidingWorld']
+__all__ = ['Collider', 'CollidingWorld', 'Material']
+
+
+class Material:
+    def __init__(self, static_friction, dynamic_friction, restitution, density):
+        self.static_friction = static_friction
+        self.dynamic_friction = dynamic_friction
+        self.restitution = restitution
+        self.density = density
+
+
+class Collider(Entity):
+    def __init__(self, shape, material, pos, ang, mass, moi):
+        # todo: auto-calculate mass and moi
+        super().__init__(pos, mass, ang, moi)
+        self.vertices = shape
+        self.material = material
+
+    def get_vertices(self):
+        return tuple(self.vertices)
 
 
 class CollidingWorld(System):
-    imps = []
+    def __init__(self, gravity=Vec(0, 0)):
+        super().__init__(gravity)
+        self.imps = []  # Impulse tracking for the visualisation.
+
     def add_ent(self, *objs):
         for obj in objs:
             if not isinstance(obj, Collider):
@@ -15,10 +37,10 @@ class CollidingWorld(System):
             super().add_ent(obj)
 
     def update(self, dt):
-        #import random; random.shuffle(self._entities)
+        self.imps = [imp[:3] + [imp[3] - 1] for imp in self.imps if imp[3] > 0]
+
         self.dampen(dt)
         self.update_spring(dt)
-        self.imps = [imp[:3] + [imp[3] - 1] for imp in self.imps if imp[3] > 0]
         self.update_collision(dt)
         self.update_turn(dt)
         self.update_move(dt)
@@ -49,21 +71,23 @@ class CollidingWorld(System):
                 #o1.new_acc -= force / o1.mass
                 #o2.new_acc += force / o2.mass
 
-        def resolve(o1, o2, separation, axis):
+        def resolve(o1: Collider, o2: Collider, contact_normal):
             if o1.mass == float('inf') and o2.mass == float('inf'):
                 return
 
-            # Find a point in space to apply the torque from on each object.
-            pos = get_intersector(o1.get_vertices(), o2.get_vertices(), axis)
+            n = contact_normal
+
+            # Find some point in space to apply the torque from on each
+            # object relative to each object.
+            pos = get_intersector(o1.get_vertices(), o2.get_vertices(), n)
             if pos is None:
                 return
             pos_o1 = pos - o1.pos
             pos_o2 = pos - o2.pos
 
-            n = axis  #Vec(x=-axis.y, y=axis.x)
-            #dv = o2.vel + o2.ang_vel * pos_o2 - (
-            #     o1.vel + o1.ang_vel * pos_o1)
             dv = o2.vel - o1.vel
+            # dv = o2.vel + o2.ang_vel * pos_o2 - (
+            #      o1.vel + o1.ang_vel * pos_o1)
 
             v_dot_n = dv.dot(n)
 
@@ -73,7 +97,8 @@ class CollidingWorld(System):
                 return
 
             # Calculate scalar impulse, j.
-            e = 0.2  # coeff. of restitution
+            # Combine coef. of restitution
+            e = min(o1.material.restitution, o2.material.restitution)
             j = -(1 + e) * v_dot_n
             j /= 1/o1.mass + 1/o2.mass \
                 + (abs(pos_o1) * dt)**2 / o1.moi \
@@ -87,9 +112,16 @@ class CollidingWorld(System):
             apply_impulse(o2, impulse, pos_o2)
 
             # Calculate and apply friction.
-            mu = 0.4
+            # Combine coef. of static friction.
+            mu = (o1.material.static_friction ** 2
+                  + o2.material.static_friction ** 2
+                  ) ** 0.5
+            mu_dynamic = (o1.material.dynamic_friction ** 2
+                          + o2.material.dynamic_friction ** 2
+                          ) ** 0.5
 
-            #dv = o2.new_vel - o1.new_vel  # Update as dv should have changed.
+            # Update as dv should have changed.
+            # dv = o2.new_vel - o1.new_vel
             dv = o2.new_vel + o2.new_ang_vel * pos_o2 - (
                  o1.new_vel + o1.new_ang_vel * pos_o1)
             t = dv - n * dv.dot(n)
@@ -106,17 +138,14 @@ class CollidingWorld(System):
                 impulse = jt * t
             else:
                 # Object is not nearly at rest, apply dynamic friction.
-                impulse = t * -j * 0.2
-
-            #o1.new_vel += 1/o1.mass * -impulse
-            #o2.new_vel += 1/o2.mass * impulse
+                impulse = t * -j * mu_dynamic
 
             apply_impulse(o1, -impulse, pos_o1)
             apply_impulse(o2, impulse, pos_o2)
 
-        collisions = collide_all(self._entities)
+        collisions = collide_all(self.entities)
         for o1, o2, separation, normal in collisions:
-            resolve(o1, o2, separation, normal)
+            resolve(o1, o2, normal)
 
         for o1, o2, separation, normal in collisions:
             correct_positions(o1, o2, separation, normal)

@@ -1,18 +1,9 @@
 from base import *
 
-__all__ = ['Collider',
-           'get_support',
+__all__ = ['get_support',
            'get_separation', 'collide', 'collide_point',
            'collide_all',
            'get_intersector']
-
-
-class Collider:
-    def __init__(self, vertices):
-        self.vertices = vertices
-    
-    def get_vertices(self):
-        return tuple(self.vertices)
 
 
 def get_support(n, poly):
@@ -39,7 +30,7 @@ def get_separation(p1, p2):
             highest_d = d
             normal = n
 
-    return  highest_d, normal
+    return highest_d, normal
 
 
 def collide(p1, p2):

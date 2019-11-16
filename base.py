@@ -46,9 +46,9 @@ def min_max(iterable, key=lambda x: x):
 class Vec:
     # Restrict instances to hold only the attributes in the following
     # table.  This saves memory at the cost of flexibility.
-    __slots__ = ["x", "y"]
+    __slots__ = ['x', 'y']
 
-    def __init__(self, x=0, y=0):
+    def __init__(self, x: float = 0.0, y: float = 0.0):
         self.x = x
         self.y = y
 

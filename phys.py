@@ -31,32 +31,32 @@ class Entity:
 
 class System:
     """A world to hold and simulate interaction of `Entity`s."""
-    def __init__(self):
-        self._entities = []
-        self._springs = []
-        self.gravity = Vec(0, 0)
+    def __init__(self, gravity=Vec(0, 0)):
+        self.entities = []
+        self.springs = []
+        self.gravity = gravity
 
     def add_ent(self, *entities):
         for ent in entities:
             if not isinstance(ent, Entity):
                 raise TypeError(f"{ent} is not an Entity")
 
-            self._entities.append(ent)
+            self.entities.append(ent)
 
     def remove_ent(self, *entities):
         for ent in entities:
-            self._entities.remove(ent)
+            self.entities.remove(ent)
 
     def add_spring(self, *springs):
         for spring in springs:
             if not isinstance(spring, Spring):
                 raise TypeError(f"{spring} is not a Spring")
 
-            self._springs.append(spring)
+            self.springs.append(spring)
 
     def remove_spring(self, *springs):
         for spring in springs:
-            self._springs.remove(spring)
+            self.springs.remove(spring)
 
     def update(self, dt):
         self.dampen(dt)
@@ -65,13 +65,13 @@ class System:
         self.update_move(dt)
 
     def dampen(self, dt):
-        for ent in self._entities:
+        for ent in self.entities:
             ent.new_vel -= ent.vel * 0.1 * dt
             ent.ang_vel -= ent.ang_vel * 0.1 * dt
 
     def update_spring(self, dt):
         # Calculate spring forces and apply them.
-        for spring in self._springs:
+        for spring in self.springs:
             length = spring.end2.pos + spring.get_end2_join_pos() \
                      - spring.end1.pos - spring.get_end1_join_pos()
 
@@ -100,7 +100,7 @@ class System:
             spring.end2.new_ang_acc -= torque2 / spring.end2.moi
 
     def update_move(self, dt):
-        for ent in self._entities:
+        for ent in self.entities:
             if ent.mass == float('inf'):
                 continue
 
@@ -117,7 +117,7 @@ class System:
             ent.new_acc = Vec(0, 0)
 
     def update_turn(self, dt):
-        for ent in self._entities:
+        for ent in self.entities:
             # Calculate new orientation using Velocity Verlet.
             ent.ang_vel = 1 * ent.new_ang_vel + \
                           (ent.ang_acc + ent.new_ang_acc) * dt / 2
@@ -132,7 +132,7 @@ class System:
         """Get the positions and velocities of all entities in self."""
         return "".join(flatten(
                         ("ent p=", str(ent.pos), " v=", str(ent.vel), "\n")
-                        for ent in self._entities))
+                        for ent in self.entities))
 
 
 class Projectile(Entity):

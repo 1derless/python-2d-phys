@@ -60,7 +60,7 @@ def save(path, system):
             data.append([])
 
         data.append(system.gravity)
-        data.append(system._entities)
-        data.append(system._springs)
+        data.append(system.entities)
+        data.append(system.springs)
 
         pickle.dump(data, file)

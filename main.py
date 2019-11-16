@@ -14,23 +14,30 @@ from collision import *
 from colliding_world import *
 import load_system
 
+test_material = Material(
+    static_friction=0.4,
+    dynamic_friction=0.2,
+    restitution=0.2,
+    density=1,  # todo: adjust when density is implemented
+)
 
-class Entity(Entity, Collider):
+
+class DrawCollider(Collider):
     def __init__(self, pos, mass, ang, moi, vertices, colour=(255, 255, 255)):
-        super().__init__(pos, mass, ang, moi)
         centre = sum(vertices, Vec(0, 0)) / len(vertices)
         vertices = [v - centre for v in vertices]
 
-        self.vertices = vertices
+        super().__init__(vertices, test_material, pos, ang, mass, moi)
+
         self.colour = colour
 
     def get_vertices(self):
         return [vertex.rotate(self.ang) + self.pos for vertex in self.vertices]
 
 
-class FrozenEntity(Pin, Collider):
+class FrozenEntity(DrawCollider):
     def __init__(self, pos, vertices, colour=(255, 255, 255)):
-        super().__init__(pos)
+        super().__init__(pos, mass=float('inf'), moi=float('inf'), vertices=vertices, ang=0)
 
         self.vertices = vertices
         self.colour = colour
@@ -42,7 +49,7 @@ class FrozenEntity(Pin, Collider):
 class DrawableWorld(CollidingWorld):
     def draw(self):
         # Draw springs.
-        for s in self._springs:
+        for s in self.springs:
             if s.slack:
                 colour = (0, 0, 255)
             else:
@@ -56,7 +63,7 @@ class DrawableWorld(CollidingWorld):
             )
 
         # Draw polygons.
-        for obj in self._entities:
+        for obj in self.entities:
             verts = obj.get_vertices()
             n_verts = len(verts)
             pyglet.graphics.draw(n_verts, pyglet.gl.GL_LINE_LOOP,
@@ -89,7 +96,7 @@ class Window(pyglet.window.Window):
         self.force_gc = False
         self.time = 0
 
-        self.obj1 = Entity(
+        self.obj1 = DrawCollider(
            pos=Vec(450, 250),
            mass=0.5,
            ang=3.141593 / 3,
@@ -102,7 +109,7 @@ class Window(pyglet.window.Window):
                Vec(x=  0., y= 25.),
              ]
             )
-        self.obj2 = Entity(
+        self.obj2 = DrawCollider(
            pos=Vec(450, 150),
            mass=0.5,
            ang=0.0,
@@ -120,32 +127,12 @@ class Window(pyglet.window.Window):
         self.phys_world.gravity.y = -100
         self.phys_world.add_ent(
             self.obj1,
-        #    Entity(pos=Vec(250, 200), mass=0.5, ang=0, moi=1000,
-        #           colour=(0, 255, 0),
-        #           vertices=[Vec(x=-50., y=-50.),
-        #                     Vec(x= 50., y=-50.),
-        #                     Vec(x= 50., y= 50.),
-        #                     Vec(x=-50., y= 50.),
-        #                     ]),
-        #    Entity(pos=Vec(150, 200), mass=0.25, ang=0, moi=1000,
-        #           colour=(0, 255, 255),
-        #           vertices=[Vec(x=-50., y=-50.),
-        #                     #Vec(x= 50., y=-50.),
-        #                     Vec(x= 50., y= 50.),
-        #                     Vec(x=-50., y= 50.),
-        #                     ]),
             self.obj2,
             FrozenEntity(pos=Vec(450, 50),
                    vertices=[Vec(x=-9000., y=-75.),
                              Vec(x= 9000., y=-75.),
                              Vec(x= 9000., y= 25.),
                              Vec(x=-9000., y= 25.),
-                             ]),
-            FrozenEntity(pos=Vec(0, 0),
-                   vertices=[Vec(x= 500., y=-75.),
-                             Vec(x= 550., y=-75.),
-                             Vec(x=9050., y=1000.),
-                             Vec(x=9000., y=1000.),
                              ]),
             FrozenEntity(pos=Vec(0, 0),
                    vertices=[Vec(x=-10., y=0.),
@@ -159,7 +146,6 @@ class Window(pyglet.window.Window):
                              Vec(x=810., y=1000.),
                              Vec(x=790., y=1000.),
                              ]),
-        #    self.obj2,
         )
 
         self.phys_world.add_spring(Spring(
@@ -174,7 +160,7 @@ class Window(pyglet.window.Window):
         import random
         for i in range(10):
             self.phys_world.add_ent(
-                Entity(
+                DrawCollider(
                    pos=Vec(random.randint(0, 600), 105 * i),
                    mass=0.5,
                    ang=3.141593 / 4,
@@ -223,7 +209,7 @@ class Window(pyglet.window.Window):
         if symbol == key.G:
             self.force_gc = not self.force_gc
         elif symbol == key.SPACE:
-            for obj in self.phys_world._entities:
+            for obj in self.phys_world.entities:
                 obj.vel = Vec(0, 0)
                 obj.new_vel = Vec(0, 0)
                 obj.ang_vel = 0
