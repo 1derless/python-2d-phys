@@ -70,8 +70,10 @@ def collide_point(s, p1):
     return biggest_d
 
 
-def collide_all(colliders, callback):
+def collide_all(colliders):
     polys = [c.get_vertices() for c in colliders]
+
+    collisions = []
 
     for start in range(len(colliders) - 1):
         head = polys[start]
@@ -80,10 +82,14 @@ def collide_all(colliders, callback):
         for i, poly in enumerate(tail):
             separation, axis = collide(head, poly)
             if separation < 0.0:
-               callback(colliders[start],
-                        colliders[start + 1 + i],
-                        separation=separation,
-                        axis=axis)
+                collisions.append(
+                    (colliders[start],
+                     colliders[start + 1 + i],
+                     separation,
+                     axis)
+                )
+
+    return collisions
 
 
 def get_intersector(p1, p2, axis):

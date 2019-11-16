@@ -15,12 +15,16 @@ class Entity:
         self.mass = mass
         self.vel = Vec(x=0, y=0)
         self.acc = Vec(x=0, y=0)
-        self.new_acc = Vec()
+        self.new_pos = self.pos
+        self.new_vel = self.vel
+        self.new_acc = self.acc
 
         # There is only one axis for rotation in 2D - the Z-axis.
         self.ang = ang
         self.ang_vel = 0
         self.ang_acc = 0
+        self.new_ang = ang
+        self.new_ang_vel = 0
         self.new_ang_acc = 0
         self.moi = moi  # Moment of inertia
 
@@ -62,7 +66,7 @@ class System:
 
     def dampen(self, dt):
         for ent in self._entities:
-            ent.vel -= ent.vel * 0.1 * dt
+            ent.new_vel -= ent.vel * 0.1 * dt
             ent.ang_vel -= ent.ang_vel * 0.1 * dt
 
     def update_spring(self, dt):
@@ -97,22 +101,31 @@ class System:
 
     def update_move(self, dt):
         for ent in self._entities:
+            if ent.mass == float('inf'):
+                continue
+
             # Apply gravity.
-            if ent.mass != float('inf'):
-                ent.new_acc += self.gravity
+            ent.new_acc += self.gravity
 
             # Calculate new position using Velocity Verlet.
-            ent.vel += (ent.acc + ent.new_acc) * dt / 2
+            ent.vel = ent.new_vel + (ent.acc + ent.new_acc) * dt / 2
+            ent.pos = ent.new_pos + ent.vel*dt + ent.new_acc*dt*dt/2
             ent.acc = ent.new_acc
-            ent.pos += ent.vel*dt + ent.new_acc*dt*dt/2
+
+            ent.new_pos = ent.pos
+            ent.new_vel = ent.vel
             ent.new_acc = Vec(0, 0)
 
     def update_turn(self, dt):
         for ent in self._entities:
             # Calculate new orientation using Velocity Verlet.
-            ent.ang_vel += (ent.ang_acc + ent.new_ang_acc) * dt / 2
+            ent.ang_vel = 1 * ent.new_ang_vel + \
+                          (ent.ang_acc + ent.new_ang_acc) * dt / 2
+            ent.ang = ent.new_ang + ent.ang_vel*dt + ent.new_ang_acc*dt*dt/2
             ent.ang_acc = ent.new_ang_acc
-            ent.ang += ent.ang_vel*dt + ent.new_ang_acc*dt*dt/2
+
+            ent.new_ang = ent.ang
+            ent.new_ang_vel = ent.ang_vel
             ent.new_ang_acc = 0
 
     def get_state(self):
@@ -162,9 +175,9 @@ class Pin(Projectile):
         pass
 
     def __init__(self, pos):
+        self.relocate(pos)
         pos = self.PinnedVec(x=pos.x, y=pos.y)
         super().__init__(pos=pos, mass=float('inf'))
-        self.relocate(pos)
 
     def relocate(self, value):
         self._pos = self.PinnedVec(x=value.x, y=value.y)
