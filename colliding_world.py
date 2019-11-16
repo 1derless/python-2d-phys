@@ -37,6 +37,7 @@ class CollidingWorld(System):
             super().add_ent(obj)
 
     def update(self, dt):
+        import random; random.shuffle(self.entities)
         self.imps = [imp[:3] + [imp[3] - 1] for imp in self.imps if imp[3] > 0]
 
         self.dampen(dt)
@@ -46,11 +47,14 @@ class CollidingWorld(System):
         self.update_move(dt)
 
     def update_collision(self, dt):
-        def apply_impulse(entity, impulse, collision_normal):
+        def apply_impulse(entity, impulse, collision_normal, show=True):
+            if entity.mass == float('inf'):
+                return
+
             entity.new_vel += impulse / entity.mass
             entity.new_ang_vel += collision_normal.cross(impulse) / entity.moi
 
-            if entity.mass != float('inf'):
+            if show:
                 self.imps.append([entity.pos, impulse, collision_normal, 30])
 
         def correct_positions(o1, o2, separation, collision_normal):
@@ -67,9 +71,7 @@ class CollidingWorld(System):
                 # o2.vel = max(1 / o2.mass * correction * dt, o2.vel, key=abs)
                 o1.new_pos -= 1 / o1.mass * correction
                 o2.new_pos += 1 / o2.mass * correction
-                #force = -separation * axis
-                #o1.new_acc -= force / o1.mass
-                #o2.new_acc += force / o2.mass
+
 
         def resolve(o1: Collider, o2: Collider, contact_normal):
             if o1.mass == float('inf') and o2.mass == float('inf'):

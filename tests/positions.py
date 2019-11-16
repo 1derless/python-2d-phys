@@ -4,7 +4,7 @@ from base import *
 DT = 0.01
 ITERATIONS = 1000
 
-world = PhysWorld()
+world = System()
 
 objs = (Projectile(pos=Vec(x=0, y=0), mass=10),
         Projectile(pos=Vec(x=100, y=100), mass=20),
@@ -13,7 +13,7 @@ objs = (Projectile(pos=Vec(x=0, y=0), mass=10),
 sprs = (Spring(stiffness=0.5, end1=objs[0], end2=objs[1]),
         Spring(stiffness=0.75, end1=objs[1], end2=objs[2]))
 
-world.add_obj(*objs)
+world.add_ent(*objs)
 world.add_spring(*sprs)
 
 for i in range(ITERATIONS):

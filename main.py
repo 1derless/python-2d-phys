@@ -2,10 +2,11 @@
 
 import time
 import math
+import sys
 import gc
 
 import pyglet
-from pyglet.window import key
+from pyglet.window import key, mouse
 import easygui
 
 from base import *
@@ -18,7 +19,7 @@ test_material = Material(
     static_friction=0.4,
     dynamic_friction=0.2,
     restitution=0.2,
-    density=1,  # todo: adjust when density is implemented
+    density=0.00005,  # todo: adjust when density is implemented
 )
 
 
@@ -33,6 +34,27 @@ class DrawCollider(Collider):
 
     def get_vertices(self):
         return [vertex.rotate(self.ang) + self.pos for vertex in self.vertices]
+
+
+class Hexagon(DrawCollider):
+    vertices = [
+        Vec(100, 0),
+        Vec(50, 87),
+        Vec(-50, 87),
+        Vec(-100, 0),
+        Vec(-50, -87),
+        Vec(50, -87),
+    ]
+
+    def __init__(self, scale, pos, ang, material, colour=(255, 255, 255)):
+        # mass = area * density
+        length = scale * 100
+        mass = 3 / 2 * 3**0.5 * length**2 * material.density
+        moi = 5 / 16 * 3**0.5 * length**4 * material.density
+
+        vertices = [v * scale for v in Hexagon.vertices]
+
+        super().__init__(pos, mass, ang, moi, vertices, colour)
 
 
 class FrozenEntity(DrawCollider):
@@ -74,7 +96,7 @@ class DrawableWorld(CollidingWorld):
 
         # Draw impulses.
         for imp in self.imps:
-            if abs(imp[1]) < 3:
+            if abs(imp[1]) < 1:
                 continue
 
             k = 1000
@@ -91,43 +113,18 @@ class DrawableWorld(CollidingWorld):
 class Window(pyglet.window.Window):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.mouse = (0, 0)
-        self.rect = Rect(x=250, y=250, w=100, h=200)
         self.force_gc = False
         self.time = 0
-
-        self.obj1 = DrawCollider(
-           pos=Vec(450, 250),
-           mass=0.5,
-           ang=3.141593 / 3,
-           moi=300,
-           colour=(0, 0, 255),
-           vertices=[
-               Vec(x=-50., y=-25.),
-               #Vec(x= 50., y=-50.),
-               Vec(x= 50., y=-25.),
-               Vec(x=  0., y= 25.),
-             ]
-            )
-        self.obj2 = DrawCollider(
-           pos=Vec(450, 150),
-           mass=0.5,
-           ang=0.0,
-           moi=400,
-           colour=(255, 0, 255),
-           vertices=[
-               Vec(x=-50., y=-50.),
-               #Vec(x= 50., y=-50.),
-               Vec(x= 50., y=-50.),
-               Vec(x=  0., y= 50.),
-             ]
-            )
 
         self.phys_world = DrawableWorld()
         self.phys_world.gravity.y = -100
         self.phys_world.add_ent(
-            self.obj1,
-            self.obj2,
+            Hexagon(
+                scale=0.75,
+                pos=Vec(500, 500),
+                ang=-1,
+                material=test_material,
+            ),
             FrozenEntity(pos=Vec(450, 50),
                    vertices=[Vec(x=-9000., y=-75.),
                              Vec(x= 9000., y=-75.),
@@ -141,49 +138,15 @@ class Window(pyglet.window.Window):
                              Vec(x=-10., y=1000.),
                              ]),
             FrozenEntity(pos=Vec(0, 0),
-                   vertices=[Vec(x=790., y=0.),
-                             Vec(x=810., y=0.),
-                             Vec(x=810., y=1000.),
-                             Vec(x=790., y=1000.),
+                   vertices=[Vec(x=840., y=0.),
+                             Vec(x=860., y=0.),
+                             Vec(x=860., y=1000.),
+                             Vec(x=840., y=1000.),
                              ]),
         )
 
-        self.phys_world.add_spring(Spring(
-            stiffness=0.5,
-            end1=self.obj1,
-            end1_join_pos=Vec(x=0., y=25.),
-            end2=self.obj2,
-            end2_join_pos=Vec(x=0., y=66.67),
-            )
-        )
-
-        import random
-        for i in range(10):
-            self.phys_world.add_ent(
-                DrawCollider(
-                   pos=Vec(random.randint(0, 600), 105 * i),
-                   mass=0.5,
-                   ang=3.141593 / 4,
-                   moi=833,
-                   colour=(random.randint(63, 255),) * 3,
-                   vertices=[
-                       Vec(x=-50., y=-50.),
-                       Vec(x= 50., y=-50.),
-                       Vec(x= 50., y= 50.),
-                       Vec(x=-50., y= 50.),
-                       ]
-                    )
-                )
-
         pyglet.clock.schedule_interval(self.periodic_update, 1/120)
         #pyglet.clock.schedule(self.periodic_update)
-
-        ###############
-        #load_system.save('test_v2.dat', self.phys_world)
-        #self.phys_world = load_system.load(easygui.fileopenbox())
-        #if version != 'version 1':
-        #    raise TypeError('Wrong version file')
-        ###############
 
     def periodic_update(self, dt):
         dt = 1 / 120
@@ -193,17 +156,23 @@ class Window(pyglet.window.Window):
         for _ in range(steps):
             self.phys_world.update(dt / steps)
 
-        #for obj in self.phys_world._entities:
-        #    obj.pos.x %= self.width
-        #    obj.pos.y %= self.height
+        print(f'{1/dt} fps' if dt > 0 else 'Too fast.', end='\r')
 
-        print(1/dt if dt > 0 else "No time.", end='\r')
-
-    def on_mouse_motion(self, x, y, _dx, _dy):
-        #self.mouse_pin.relocate(Vec(x, y))
-        self.obj1.new_pos = Vec(x, y)
-        self.obj1.new_vel = Vec(0, 0)
-        pass
+    def on_mouse_press(self, x, y, button, modifiers):
+        if button == mouse.LEFT:
+            self.phys_world.add_ent(
+                Hexagon(
+                    scale=1,
+                    pos=Vec(x, y),
+                    ang=0,
+                    material=test_material,
+                )
+            )
+        elif button == mouse.RIGHT:
+            for ent in self.phys_world.entities:
+                if 0 > collide_point(Vec(x, y), ent.get_vertices()):
+                    print('Removed', ent)
+                    self.phys_world.remove_ent(ent)
 
     def on_key_press(self, symbol, modifiers):
         if symbol == key.G:
