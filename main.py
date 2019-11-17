@@ -101,13 +101,13 @@ class DrawableWorld(CollidingWorld):
             )
 
         # Draw impulses.
+        batch = pyglet.graphics.Batch()  # Batch draw calls to improve performance.
         if self.draw_impulses:
             for imp in self.imps:
-                if abs(imp[1]) < 1:
-                    continue
+                # if abs(imp[1]) < 1:
+                #     continue
 
-                k = 1000
-                pyglet.graphics.draw(2, pyglet.gl.GL_LINES,
+                batch.add(2, pyglet.gl.GL_LINES, None,
                     ('v2f', (imp[0].x + imp[2].x,
                              imp[0].y + imp[2].y,
                              imp[0].x + imp[2].x + imp[1].x,
@@ -115,6 +115,8 @@ class DrawableWorld(CollidingWorld):
                     ),
                     ('c3B', (255, 0, 0) * 2)
                 )
+
+            batch.draw()
 
 
 class Window(pyglet.window.Window):
@@ -163,7 +165,7 @@ class Window(pyglet.window.Window):
         for _ in range(steps):
             self.phys_world.update(dt / steps)
 
-        print(f'{1/dt} fps' if dt > 0 else 'Too fast.', end='\r')
+        print(f'{1/dt} fps' if dt > 0 else '', end='\r')
 
     def on_mouse_press(self, x, y, button, modifiers):
         if button == mouse.LEFT:
@@ -194,7 +196,8 @@ class Window(pyglet.window.Window):
 
         elif symbol == key.M:
             global test_material
-            test_material = gui.get_material()
+
+            test_material = gui.get_material() or test_material
 
         elif symbol == key.D:
             self.phys_world.draw_impulses = not self.phys_world.draw_impulses
@@ -209,13 +212,13 @@ class Window(pyglet.window.Window):
             raise e
 
     def on_draw_(self):
-        #self.clear()
-        pyglet.graphics.draw(5, pyglet.gl.GL_POLYGON,
-            ('v2f', [0.0, 0.0,  self.width, 0.0,  self.width, self.height,  0.0, self.height,  0.0, 0.0]),
-            ('c4B', [0, 0, 0, 255] * 5)
-        )
+        self.clear()
+        #pyglet.graphics.draw(5, pyglet.gl.GL_POLYGON,
+        #    ('v2f', [0.0, 0.0,  self.width, 0.0,  self.width, self.height,  0.0, self.height,  0.0, 0.0]),
+        #    ('c4B', [0, 0, 0, 255] * 5)
+        #)
         DrawableWorld.draw(self.phys_world)
-        print(pyglet.clock.get_fps(), end="      \r")
+        #print(pyglet.clock.get_fps(), end="      \r")
 
         if self.force_gc:
             gc.collect()
