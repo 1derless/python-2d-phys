@@ -4,6 +4,7 @@ import time
 import math
 import sys
 import gc
+import enum
 
 import pyglet
 from pyglet.window import key, mouse
@@ -94,10 +95,9 @@ class DrawableWorld(CollidingWorld):
         for obj in self.entities:
             verts = obj.get_vertices()
             n_verts = len(verts)
-            pyglet.graphics.draw(n_verts, pyglet.gl.GL_LINE_LOOP,
-            #pyglet.graphics.draw(n_verts, pyglet.gl.GL_POLYGON,
+            pyglet.graphics.draw(n_verts, pyglet.gl.GL_POLYGON,
                     ('v2f', tuple(flatten(verts))),
-                    ('c3B', obj.colour * n_verts)
+                    ('c3B', obj.colour[:3] * n_verts)
             )
 
         # Draw impulses.
@@ -113,10 +113,42 @@ class DrawableWorld(CollidingWorld):
                              imp[0].x + imp[2].x + imp[1].x,
                              imp[0].y + imp[2].y + imp[1].y)
                     ),
-                    ('c3B', (255, 0, 0) * 2)
+                    ('c4B', (255, 0, 0, 255) * 2)
                 )
 
             batch.draw()
+
+
+class EditorState(enum.Enum):
+    EDIT = enum.auto()
+    PLAY = enum.auto()
+
+
+class LabeledButton:
+    def __init__(self, text, x, y, font_size, colour=(255, 255, 255, 255), bg_colour=(0, 0, 0, 255)):
+        self.label = pyglet.text.Label(
+            text=text,
+            x=x,
+            y=y,
+            font_size=font_size,
+            anchor_x='left',
+            anchor_y='bottom',
+            color=colour
+        )
+        self.bg_colour = bg_colour
+
+    def check_click(self, x, y):
+        return (self.label.x <= x <= self.label.x + self.label.content_width
+            and self.label.y <= y <= self.label.y + self.label.content_height)
+
+    def draw(self):
+        vertices = (self.label.x,                            self.label.y,
+                    self.label.x + self.label.content_width, self.label.y,
+                    self.label.x + self.label.content_width, self.label.y + self.label.content_height,
+                    self.label.x,                            self.label.y + self.label.content_height)
+        pyglet.graphics.draw(4, pyglet.gl.GL_POLYGON, ('v2f', vertices), ('c4B', self.bg_colour * 4))
+
+        self.label.draw()
 
 
 class Window(pyglet.window.Window):
@@ -124,6 +156,23 @@ class Window(pyglet.window.Window):
         super().__init__(*args, **kwargs)
         self.force_gc = False
         self.time = 0
+
+        self.colour = (255, 255, 255, 255)
+        self.state = EditorState.EDIT
+
+        self.label_play = LabeledButton(
+                text='Play',
+                x=0,
+                y=0,
+                font_size=50,
+            )
+
+        self.label_pause = LabeledButton(
+            text='Pause',
+            x=0,
+            y=0,
+            font_size=50,
+        )
 
         self.phys_world = DrawableWorld()
         self.phys_world.gravity.y = -100
@@ -158,30 +207,47 @@ class Window(pyglet.window.Window):
         #pyglet.clock.schedule(self.periodic_update)
 
     def periodic_update(self, dt):
-        dt = 1 / 120
-        self.time += dt
+        if self.state == EditorState.PLAY:
+            dt = 1 / 120
+            self.time += dt
 
-        steps = 1
-        for _ in range(steps):
-            self.phys_world.update(dt / steps)
+            steps = 1
+            for _ in range(steps):
+                self.phys_world.update(dt / steps)
+
+        elif self.state == EditorState.EDIT:
+            pass
 
         print(f'{1/dt} fps' if dt > 0 else '', end='\r')
 
     def on_mouse_press(self, x, y, button, modifiers):
-        if button == mouse.LEFT:
-            self.phys_world.add_ent(
-                Hexagon(
-                    scale=1,
-                    pos=Vec(x, y),
-                    ang=0,
-                    material=test_material,
-                )
-            )
-        elif button == mouse.RIGHT:
-            for ent in self.phys_world.entities:
-                if 0 > collide_point(Vec(x, y), ent.get_vertices()):
-                    print('Removed', ent)
-                    self.phys_world.remove_ent(ent)
+        if self.state == EditorState.EDIT:
+            if button == mouse.LEFT:
+                # If clicked on play button:
+                if self.label_play.check_click(x, y):
+                    self.state = EditorState.PLAY
+
+                # If clicked on no button, add shape:
+                else:
+                    self.phys_world.add_ent(
+                        Hexagon(
+                            scale=1,
+                            pos=Vec(x, y),
+                            ang=0,
+                            material=test_material,
+                            colour=self.colour,
+                        )
+                    )
+            elif button == mouse.RIGHT:
+                for ent in self.phys_world.entities:
+                    if 0 > collide_point(Vec(x, y), ent.get_vertices()):
+                        print('Removed', ent)
+                        self.phys_world.remove_ent(ent)
+
+        elif self.state == EditorState.PLAY:
+            if button == mouse.LEFT:
+                if self.label_pause.check_click(x, y):
+                    self.state = EditorState.EDIT
 
     def on_key_press(self, symbol, modifiers):
         if symbol == key.G:
@@ -202,6 +268,9 @@ class Window(pyglet.window.Window):
         elif symbol == key.D:
             self.phys_world.draw_impulses = not self.phys_world.draw_impulses
 
+        elif symbol == key.C:
+            self.colour = gui.get_colour() or self.colour
+
         else:
             super().on_key_press(symbol, modifiers)
 
@@ -213,12 +282,13 @@ class Window(pyglet.window.Window):
 
     def on_draw_(self):
         self.clear()
-        #pyglet.graphics.draw(5, pyglet.gl.GL_POLYGON,
-        #    ('v2f', [0.0, 0.0,  self.width, 0.0,  self.width, self.height,  0.0, self.height,  0.0, 0.0]),
-        #    ('c4B', [0, 0, 0, 255] * 5)
-        #)
         DrawableWorld.draw(self.phys_world)
-        #print(pyglet.clock.get_fps(), end="      \r")
+
+        if self.state == EditorState.EDIT:
+            self.label_play.draw()
+
+        elif self.state == EditorState.PLAY:
+            self.label_pause.draw()
 
         if self.force_gc:
             gc.collect()
