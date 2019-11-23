@@ -13,6 +13,7 @@ def get_support(n, poly):
 def get_separation(p1, p2):
     highest_d = float('-inf')
     normal = Vec(0, 0)
+    vertex_index = 0
     for i in range(len(p1)):
         # Find this edge.
         j = (i + 1) % len(p1)
@@ -29,20 +30,50 @@ def get_separation(p1, p2):
         if d > highest_d:
             highest_d = d
             normal = n
+            vertex_index = i
 
-    return highest_d, normal
+    return highest_d, normal, vertex_index
 
 
 def collide(p1, p2):
-    sep1 = get_separation(p1, p2) 
-    sep2 = get_separation(p2, p1) 
+    separation_1, ref_normal_1, incident_index_1 = get_separation(p1, p2)
+    separation_2, ref_normal_2, incident_index_2 = get_separation(p2, p1)
 
-    if sep1[0] > sep2[0]:
-        return sep1
+    # todo: introduce bias to this calculation
+    if separation_1 > separation_2:
+        return separation_1, get_incident_normal(ref_normal_1, p1, incident_index_1)
     else:
         # Invert normal so that it always points away from p1 and
         # towards p2.
-        return (sep2[0], -sep2[1])
+        return separation_2, -get_incident_normal(ref_normal_2, p2, incident_index_2)
+
+
+def get_incident_normal(ref_n, inc_p, inc_i):
+    left_edge = inc_p[inc_i - 1] - inc_p[inc_i]  # Need not wrap the index here as Python does it automatically.
+    right_edge = inc_p[inc_i] - inc_p[(inc_i + 1) % len(inc_p)]
+
+    left_n = Vec(x=-left_edge.y, y=left_edge.x)
+    left_n = left_n / abs(left_n)
+
+    right_n = Vec(x=-right_edge.y, y=right_edge.x)
+    right_n = right_n / abs(right_n)
+
+    if ref_n.dot(left_n) > ref_n.dot(right_n):
+        return left_n
+    else:
+        return right_n
+
+
+def get_intersector(p1, p2, axis):
+    intersecting_points = []
+    intersecting_points += [p for p in p1 if collide_point(p, p2) < 0]
+    intersecting_points += [p for p in p2 if collide_point(p, p1) < 0]
+
+    if len(intersecting_points) == 0:
+        return None
+
+    # Return average point.
+    return sum(intersecting_points, Vec(0, 0)) / len(intersecting_points)
 
 
 def collide_point(s, p1):
@@ -81,52 +112,3 @@ def collide_all(colliders):
                 )
 
     return collisions
-
-
-def get_intersector(p1, p2, axis):
-    #'''
-    intersecting_points = []
-    intersecting_points += [p for p in p1 if collide_point(p, p2) < 0]
-    intersecting_points.extend(filter(lambda p: collide_point(p, p1) < 0, p2))
-
-    if len(intersecting_points) == 0:
-        #return None
-        return max(p1, key=lambda p: collide_point(p, p2))
-
-    intersector = sum(intersecting_points, Vec(0, 0)) / len(intersecting_points)
-
-    return intersector
-    #'''
-
-    p1_sorted = sorted(p1, key=lambda v: v.dot(-axis))
-
-    # Find the first point that collides with p2.
-    for s1 in p1_sorted:
-        depth = collide_point(s1, p2)
-        if depth < 0.0:
-            break
-    else:
-        s1 = None
-
-    p2_sorted = sorted(p2, key=lambda v: v.dot(axis))
-
-    # Find the first point that collides with p1.
-    for s2 in p2_sorted:
-        depth = collide_point(s2, p1)
-        if depth < 0.0:
-            break
-    else:
-        s2 = None
-    
-    if s1 is None:
-        if s2 is None:
-            # Only edges intersect - guess a reasonable point.
-            return p1_sorted[0]
-        else:
-            return s2
-    elif s2 is None:
-        return s1
-    elif s1.dot(axis) > s2.dot(-axis):
-        return s1
-    else:
-        return s2

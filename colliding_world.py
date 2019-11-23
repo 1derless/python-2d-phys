@@ -88,9 +88,8 @@ class CollidingWorld(System):
             pos_o1 = pos - o1.pos
             pos_o2 = pos - o2.pos
 
-            dv = o2.vel - o1.vel
-            # dv = o2.vel + o2.ang_vel * pos_o2 - (
-            #      o1.vel + o1.ang_vel * pos_o1)
+            dv = o2.vel + Vec(x=-o2.ang_vel * pos_o2.y, y=o2.ang_vel * pos_o2.x) - (
+                 o1.vel + Vec(x=-o1.ang_vel * pos_o1.y, y=o1.ang_vel * pos_o1.x))
 
             v_dot_n = dv.dot(n)
 
@@ -124,9 +123,8 @@ class CollidingWorld(System):
                           ) ** 0.5
 
             # Update as dv should have changed.
-            # dv = o2.new_vel - o1.new_vel
-            dv = o2.new_vel + o2.new_ang_vel * pos_o2 - (
-                 o1.new_vel + o1.new_ang_vel * pos_o1)
+            dv = o2.new_vel + Vec(x=-o2.new_ang_vel * pos_o2.y, y=o2.new_ang_vel * pos_o2.x) - (
+                 o1.new_vel + Vec(x=-o1.new_ang_vel * pos_o1.y, y=o1.new_ang_vel * pos_o1.x))
             t = dv - n * dv.dot(n)
 
             if abs(t) == 0:
