@@ -1,11 +1,11 @@
 import tkinter
 import tkinter.messagebox
-
+import tkinter.colorchooser
 
 from colliding_world import Material
 
 
-__all__ = ['get_material']
+__all__ = ['get_material', 'get_colour']
 
 
 class MaterialSelectWindow:
@@ -59,6 +59,7 @@ class MaterialSelectWindow:
         )
 
         self.ok_button = tkinter.Button(
+            self.tk,
             text='OK',
             command=self.ok_clicked,
         )
@@ -137,5 +138,12 @@ def get_material():
     return m.run()
 
 
+def get_colour():
+    tk = tkinter.Tk()
+    tk.withdraw()
+    colour = tkinter.colorchooser.askcolor()[0]
+    return tuple(map(int, colour))
+
+
 if __name__ == '__main__':
-    print(get_material())
+    print(get_colour())

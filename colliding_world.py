@@ -73,7 +73,6 @@ class CollidingWorld(System):
                 o1.new_pos -= 1 / o1.mass * correction
                 o2.new_pos += 1 / o2.mass * correction
 
-
         def resolve(o1: Collider, o2: Collider, contact_normal):
             if o1.mass == float('inf') and o2.mass == float('inf'):
                 return
