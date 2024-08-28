@@ -132,6 +132,12 @@ class Vec:
         self.x, self.y = (self.x*cos(t) - self.y*sin(t),
                           self.x*sin(t) + self.y*cos(t))
 
+    def to_dict(self):
+        return {'x': self.x, 'y': self.y}
+
+    @staticmethod
+    def from_dict(d):
+        return Vec(x=d['x'], y=d['y'])
 
 class Rect:
     def __init__(self, x=0, y=0, w=0, h=0, angle=0, colour=(255, 255, 255)):

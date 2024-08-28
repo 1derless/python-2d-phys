@@ -5,6 +5,7 @@ import math
 import sys
 import gc
 import enum
+import json
 
 import pyglet
 from pyglet.window import key, mouse
@@ -21,7 +22,7 @@ test_material = Material(
     static_friction=0.4,
     dynamic_friction=0.2,
     restitution=0.2,
-    density=0.00005,  # todo: adjust when density is implemented
+    density=1,  # todo: adjust when density is implemented
 )
 
 
@@ -38,6 +39,31 @@ class DrawCollider(Collider):
         return [vertex.rotate(self.ang) + self.pos for vertex in self.vertices]
 
 
+class Triangle(DrawCollider):
+    vertices = [
+        Vec(-1, 0),
+        Vec(1, 0),
+        Vec(0, 3**.5),
+    ]
+
+    def __init__(self, scale, pos, ang, material, colour=(255, 255, 255)):
+        scale = 100
+        length = scale * 2
+        # mass = 3 / 2 * 3**0.5 * length**2 * material.density
+        # moi = 5 / 16 * 3**0.5 * length**4 * material.density
+
+        mass = 3**0.5 / 4 * length**2 * material.density
+        moi = length**2 * material.density
+
+        # print(moi, mass)
+        mass = 17320.508075689 * material.density
+        moi = 3608440_00 * material.density
+
+        vertices = [v * scale for v in Triangle.vertices]
+
+        super().__init__(pos, mass, ang, moi, vertices, colour)
+
+
 class Hexagon(DrawCollider):
     vertices = [
         Vec(100, 0),
@@ -47,12 +73,18 @@ class Hexagon(DrawCollider):
         Vec(-50, -87),
         Vec(50, -87),
     ]
+    vertices = list(map(lambda v: v + Vec(100, 100), vertices))
 
     def __init__(self, scale, pos, ang, material, colour=(255, 255, 255)):
         # mass = area * density
         length = scale * 100
-        mass = 3 / 2 * 3**0.5 * length**2 * material.density
+        # mass = 3 / 2 * 3**0.5 * length**2 * material.density
+        # moi = 5 / 16 * 3**0.5 * length**4 * material.density
+
+        mass = 3**0.5 / 2 * length**2 * material.density
         moi = 5 / 16 * 3**0.5 * length**4 * material.density
+
+        # print(moi, mass)
 
         vertices = [v * scale for v in Hexagon.vertices]
 
@@ -71,12 +103,20 @@ class FrozenEntity(DrawCollider):
 
 
 class DrawableWorld(CollidingWorld):
-    def __init__(self):
+    def __init__(self, gravity=Vec(0.0, 0.0)):
         super().__init__()
 
         self.draw_impulses = True
 
     def draw(self):
+        try:
+            self.draw_()
+        except Exception as e:
+            print(e)
+            assert False
+            input()
+
+    def draw_(self):
         # Draw springs.
         for s in self.springs:
             if s.slack:
@@ -95,28 +135,53 @@ class DrawableWorld(CollidingWorld):
         for obj in self.entities:
             verts = obj.get_vertices()
             n_verts = len(verts)
+
+            if hasattr(obj, 'colour'):
+                colour = obj.colour
+            else:
+                colour = (255, 255, 255)
+
             pyglet.graphics.draw(n_verts, pyglet.gl.GL_POLYGON,
                     ('v2f', tuple(flatten(verts))),
-                    ('c3B', obj.colour[:3] * n_verts)
+                    ('c3B', colour[:3] * n_verts)
             )
 
+
+            if False:
+                aabb = make_aabb(verts)
+                vl = pyglet.graphics.vertex_list(4, ('v2f', (aabb[0], aabb[1],
+                                                             aabb[2], aabb[1],
+                                                             aabb[2], aabb[3],
+                                                             aabb[0], aabb[3],
+                                                             )),
+                                                 ('c3B', (127, 255, 255) * 4)
+                                                 )
+                vl.draw(pyglet.gl.GL_LINE_LOOP)
+
         # Draw impulses.
-        batch = pyglet.graphics.Batch()  # Batch draw calls to improve performance.
+        imp_verts = []
         if self.draw_impulses:
             for imp in self.imps:
-                # if abs(imp[1]) < 1:
-                #     continue
+                if abs(imp[1]) < 10:
+                    imp[-1] -= 4
+                    continue
 
-                batch.add(2, pyglet.gl.GL_LINES, None,
-                    ('v2f', (imp[0].x + imp[2].x,
-                             imp[0].y + imp[2].y,
-                             imp[0].x + imp[2].x + imp[1].x,
-                             imp[0].y + imp[2].y + imp[1].y)
+                imp_verts.extend(
+                    (imp[0].x + imp[2].x,
+                     imp[0].y + imp[2].y,
+                     imp[0].x + imp[2].x + imp[1].x / 500,
+                     imp[0].y + imp[2].y + imp[1].y / 500)
                     ),
-                    ('c4B', (255, 0, 0, 255) * 2)
-                )
 
-            batch.draw()
+            # Draw all impulses in one go.
+            if imp_verts:
+                no_verts = len(imp_verts) // 2
+                pyglet.graphics.draw(
+                    no_verts,
+                    pyglet.gl.GL_LINES,
+                    ('v2f', imp_verts),
+                    ('c4B', (255, 0, 0, 255) * no_verts),
+                )
 
 
 class EditorState(enum.Enum):
@@ -154,11 +219,13 @@ class LabeledButton:
 class Window(pyglet.window.Window):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.force_gc = False
         self.time = 0
 
         self.colour = (255, 255, 255, 255)
         self.state = EditorState.EDIT
+
+        self.selection_for_spring = None
+        self.attributes_for_spring = (10000, 0)
 
         self.label_play = LabeledButton(
                 text='Play',
@@ -178,10 +245,17 @@ class Window(pyglet.window.Window):
         self.phys_world.gravity.y = -100
         self.phys_world.add_ent(
             Hexagon(
-                scale=0.75,
+                scale=1,
                 pos=Vec(500, 500),
                 ang=-1,
                 material=test_material,
+            ),
+            Hexagon(
+                scale=1,
+                pos=Vec(250, 250),
+                ang=-1,
+                material=test_material,
+                colour=(255, 127, 127),
             ),
             FrozenEntity(pos=Vec(450, 50),
                    vertices=[Vec(x=-9000., y=-75.),
@@ -203,12 +277,42 @@ class Window(pyglet.window.Window):
                              ]),
         )
 
-        pyglet.clock.schedule_interval(self.periodic_update, 1/120)
+        for i in range(100):
+            self.phys_world.add_ent(
+                Hexagon(
+                    scale=1,
+                    pos=Vec(250, 250),
+                    ang=-1,
+                    material=test_material,
+                    colour=(255, 127, 127),
+                ),
+            )
+
+        self.phys_world.add_spring(
+            Spring(stiffness=10000,
+                   end1=self.phys_world.entities[0],
+                   end2=self.phys_world.entities[1],
+                   end1_join_pos=Vec(100, 0),
+                   end2_join_pos=Vec(50, 87))
+        )
+
+        pyglet.clock.schedule_interval(self.periodic_update, 1/30)
         #pyglet.clock.schedule(self.periodic_update)
 
+        print(self.phys_world.serialise())
+        #x = input()
+        d = json.loads('''
+{"springs": [{"stiffness": 10000, "slack_length": 0, "end1": "93982084042720", "end2": "93982084042776"}], "entities": {"93982084042720": {"mass": 8660.254037844386, "moi": 54126587.73652741, "pos": {"x": 500, "y": 500}, "vel": {"x": 0.0, "y": 0.0}, "acc": {"x": 0.0, "y": 0.0}, "ang": -1, "ang_vel": 0, "ang_acc": 0, "material": "93982085918632", "shape": "93982077865112"}, "93982084042776": {"mass": 8660.254037844386, "moi": 54126587.73652741, "pos": {"x": 250, "y": 250}, "vel": {"x": 0.0, "y": 0.0}, "acc": {"x": 0.0, "y": 0.0}, "ang": -1, "ang_vel": 0, "ang_acc": 0, "material": "93982085918632", "shape": "93982077865136"}, "93982084042832": {"mass": Infinity, "moi": Infinity, "pos": {"x": 450, "y": 50}, "vel": {"x": 0.0, "y": 0.0}, "acc": {"x": 0.0, "y": 0.0}, "ang": 0, "ang_vel": 0, "ang_acc": 0, "material": "93982085918632", "shape": "93982077865160"}, "93982084042888": {"mass": Infinity, "moi": Infinity, "pos": {"x": 0, "y": 0}, "vel": {"x": 0.0, "y": 0.0}, "acc": {"x": 0.0, "y": 0.0}, "ang": 0, "ang_vel": 0, "ang_acc": 0, "material": "93982085918632", "shape": "93982077865184"}, "93982084042944": {"mass": Infinity, "moi": Infinity, "pos": {"x": 0, "y": 0}, "vel": {"x": 0.0, "y": 0.0}, "acc": {"x": 0.0, "y": 0.0}, "ang": 0, "ang_vel": 0, "ang_acc": 0, "material": "93982085918632", "shape": "93982077865208"}}, "gravity": {"x": 0, "y": -100}, "shapes": {"93982077865112": [{"x": 100.0, "y": 0.0}, {"x": 50.0, "y": 87.0}, {"x": -50.0, "y": 87.0}, {"x": -100.0, "y": 0.0}, {"x": -50.0, "y": -87.0}, {"x": 50.0, "y": -87.0}], "93982077865136": [{"x": 100.0, "y": 0.0}, {"x": 50.0, "y": 87.0}, {"x": -50.0, "y": 87.0}, {"x": -100.0, "y": 0.0}, {"x": -50.0, "y": -87.0}, {"x": 50.0, "y": -87.0}], "93982077865160": [{"x": -9000.0, "y": -75.0}, {"x": 9000.0, "y": -75.0}, {"x": 9000.0, "y": 25.0}, {"x": -9000.0, "y": 25.0}], "93982077865184": [{"x": -10.0, "y": 0.0}, {"x": 10.0, "y": 0.0}, {"x": 10.0, "y": 1000.0}, {"x": -10.0, "y": 1000.0}], "93982077865208": [{"x": 840.0, "y": 0.0}, {"x": 860.0, "y": 0.0}, {"x": 860.0, "y": 1000.0}, {"x": 840.0, "y": 1000.0}]}, "materials": {"93982085918632": {"static_friction": 0.4, "dynamic_friction": 0.2, "restitution": 0.2, "density": 1}}}
+''')
+        print(d['shapes'])
+        self.phys_world = DrawableWorld.from_dict(d)
+        print(self.phys_world.entities[0].pos)
+
     def periodic_update(self, dt):
+        print(f'{1/dt} fps' if dt > 0 else '', end='\n')
+
         if self.state == EditorState.PLAY:
-            dt = 1 / 120
+            dt = 1 / 30
             self.time += dt
 
             steps = 1
@@ -218,40 +322,66 @@ class Window(pyglet.window.Window):
         elif self.state == EditorState.EDIT:
             pass
 
-        print(f'{1/dt} fps' if dt > 0 else '', end='\r')
-
     def on_mouse_press(self, x, y, button, modifiers):
-        if self.state == EditorState.EDIT:
-            if button == mouse.LEFT:
-                # If clicked on play button:
-                if self.label_play.check_click(x, y):
-                    self.state = EditorState.PLAY
+        if button == mouse.LEFT:
+            # If clicked on play button:
+            if self.label_play.check_click(x, y) and self.state == EditorState.EDIT:
+                self.state = EditorState.PLAY
+            elif self.label_pause.check_click(x, y) and self.state == EditorState.PLAY:
+                self.state = EditorState.EDIT
 
-                # If clicked on no button, add shape:
-                else:
-                    self.phys_world.add_ent(
-                        Hexagon(
-                            scale=1,
-                            pos=Vec(x, y),
-                            ang=0,
-                            material=test_material,
-                            colour=self.colour,
-                        )
+            # If clicked on no button, add shape:
+            else:
+                self.phys_world.add_ent(
+                    Triangle(
+                        scale=75,
+                        pos=Vec(x, y),
+                        ang=0,
+                        material=test_material,
+                        colour=self.colour,
                     )
-            elif button == mouse.RIGHT:
-                for ent in self.phys_world.entities:
-                    if 0 > collide_point(Vec(x, y), ent.get_vertices()):
-                        print('Removed', ent)
-                        self.phys_world.remove_ent(ent)
+                )
 
-        elif self.state == EditorState.PLAY:
-            if button == mouse.LEFT:
-                if self.label_pause.check_click(x, y):
-                    self.state = EditorState.EDIT
+        elif button == mouse.RIGHT:
+            for ent in self.phys_world.entities:
+                if 0 > collide_point(Vec(x, y), ent.get_vertices()):
+                    end2_join_pos = (Vec(x, y) - ent.pos).rotate(-ent.ang)
+
+                    if self.selection_for_spring is None:
+                        self.selection_for_spring = (ent, end2_join_pos)
+
+                    elif self.selection_for_spring[0] is not ent:
+                        self.phys_world.add_spring(
+                            Spring(stiffness=self.attributes_for_spring[0],
+                                   slack_length=self.attributes_for_spring[1],
+                                   end1=self.selection_for_spring[0],
+                                   end2=ent,
+                                   end1_join_pos=self.selection_for_spring[1],
+                                   end2_join_pos=end2_join_pos,
+                                   )
+                        )
+
+                        self.selection_for_spring = None
+
+        elif button == mouse.MIDDLE:
+            for ent in self.phys_world.entities:
+                if 0 > collide_point(Vec(x, y), ent.get_vertices()):
+                    # print('Removed', ent)
+                    self.phys_world.remove_ent(ent)
+
+                    if self.selection_for_spring is not None and self.selection_for_spring[0] is ent:
+                        self.selection_for_spring = None
+
+                    self.phys_world.springs = [s for s in self.phys_world.springs
+                                               if s.end1 is not ent and s.end2 is not ent]
 
     def on_key_press(self, symbol, modifiers):
         if symbol == key.G:
-            self.force_gc = not self.force_gc
+            self.attributes_for_spring = gui.get_spring() or self.attributes_for_spring
+
+        elif symbol == key.H:
+            for spring in self.phys_world.springs:
+                print(spring.end1, spring.end2)
 
         elif symbol == key.SPACE:
             for obj in self.phys_world.entities:
@@ -290,10 +420,13 @@ class Window(pyglet.window.Window):
         elif self.state == EditorState.PLAY:
             self.label_pause.draw()
 
-        if self.force_gc:
-            gc.collect()
-
 
 if __name__ == '__main__':
     window = Window(resizable=True, vsync=False, width=1000, height=1000)
+
+    import cProfile
+    cProfile.run('[window.phys_world.update(1/120) for _ in range(1000)]')
+    # input()
+
+    # cProfile.run('pyglet.app.run()')
     pyglet.app.run()

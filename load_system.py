@@ -36,7 +36,7 @@ def load(path):
         if 'collision' in features:
             system = colliding_world.CollidingWorld()
         else:
-            system = phys.System()
+            system = phys.World()
 
         system.gravity = gravity
 

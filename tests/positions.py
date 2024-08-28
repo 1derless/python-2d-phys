@@ -4,7 +4,7 @@ from base import *
 DT = 0.01
 ITERATIONS = 1000
 
-world = System()
+world = World()
 
 objs = (Projectile(pos=Vec(x=0, y=0), mass=10),
         Projectile(pos=Vec(x=100, y=100), mass=20),

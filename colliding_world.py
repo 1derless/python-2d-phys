@@ -12,22 +12,60 @@ class Material:
         self.restitution = restitution
         self.density = density
 
+    def to_dict(self):
+        return {'static_friction' : self.static_friction,
+                'dynamic_friction': self.dynamic_friction,
+                'restitution'     : self.restitution,
+                'density'         : self.density}
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(
+            static_friction=d['static_friction'],
+            dynamic_friction=d['dynamic_friction'],
+            restitution=d['restitution'],
+            density=d['density']
+        )
+
 
 class Collider(Entity):
-    def __init__(self, shape, material, pos, ang, mass, moi):
+    def __init__(self, shape, material, pos, ang, mass, moi, vel=Vec(), acc=Vec(), ang_vel=0, ang_acc=0):
         # todo: auto-calculate mass and moi
-        super().__init__(pos, mass, ang, moi)
+        super().__init__(pos, mass, ang, moi, vel, acc, ang_vel, ang_acc)
         self.vertices = shape
         self.material = material
 
     def get_vertices(self):
-        return tuple(self.vertices)
+        return [vertex.rotate(self.ang) + self.pos for vertex in self.vertices]
+
+    def to_dict(self):
+        d = super().to_dict()
+        d.update(
+            {'material': str(id(self.material)),
+             'shape'   : str(id(self.vertices))}
+        )
+
+        return d
+
+    @classmethod
+    def from_dict(cls, d, id_, shapes, materials, *args, **kwargs):
+        return cls(
+            mass=d['mass'],
+            pos=Vec.from_dict(d['pos']),
+            vel=Vec.from_dict(d['vel']),
+            acc=Vec.from_dict(d['acc']),
+            moi=d['moi'],
+            ang=d['ang'],
+            ang_vel=d['ang_vel'],
+            ang_acc=d['ang_acc'],
+            shape=shapes[d['shape']],
+            material=materials[d['material']],
+        )
 
 
-class CollidingWorld(System):
+class CollidingWorld(World):
     def __init__(self, gravity=Vec(0, 0)):
         super().__init__(gravity)
-        self.imps = []  # Impulse tracking for the visualisation.
         self.imps = []  # Impulse tracking for the visualisation.
 
     def add_ent(self, *objs):
@@ -38,8 +76,10 @@ class CollidingWorld(System):
             super().add_ent(obj)
 
     def update(self, dt):
-        import random; random.shuffle(self.entities)
+        # import random; random.shuffle(self.entities)
         self.imps = [imp[:3] + [imp[3] - 1] for imp in self.imps if imp[3] > 0]
+        if len(self.imps) > 30:
+            self.imps = self.imps[:31]
 
         self.damp(dt)
         self.update_spring(dt)
@@ -90,6 +130,11 @@ class CollidingWorld(System):
             dv = o2.vel + Vec(x=-o2.ang_vel * pos_o2.y, y=o2.ang_vel * pos_o2.x) - (
                  o1.vel + Vec(x=-o1.ang_vel * pos_o1.y, y=o1.ang_vel * pos_o1.x))
 
+            inverse_mass_sum = (1/o1.mass
+                                + 1/o2.mass
+                                + (pos_o1.cross(n))**2 / o1.moi
+                                + (pos_o2.cross(n))**2 / o2.moi)
+
             v_dot_n = dv.dot(n)
 
             if v_dot_n > 0.0:
@@ -101,9 +146,7 @@ class CollidingWorld(System):
             # Combine coef. of restitution
             e = min(o1.material.restitution, o2.material.restitution)
             j = -(1 + e) * v_dot_n
-            j /= 1/o1.mass + 1/o2.mass \
-                + (abs(pos_o1) * dt)**2 / o1.moi \
-                + (abs(pos_o2) * dt)**2 / o2.moi
+            j /= inverse_mass_sum
 
             # Apply impulse.
             # This ignores the velocity Verlet because collisions do not
@@ -117,9 +160,6 @@ class CollidingWorld(System):
             mu = (o1.material.static_friction ** 2
                   + o2.material.static_friction ** 2
                   ) ** 0.5
-            mu_dynamic = (o1.material.dynamic_friction ** 2
-                          + o2.material.dynamic_friction ** 2
-                          ) ** 0.5
 
             # Update as dv should have changed.
             dv = o2.new_vel + Vec(x=-o2.new_ang_vel * pos_o2.y, y=o2.new_ang_vel * pos_o2.x) - (
@@ -131,13 +171,16 @@ class CollidingWorld(System):
             t /= abs(t)
 
             jt = -dv.dot(t)  # Scalar impulse along tangent
-            jt /= 1/o1.mass + 1/o2.mass
+            jt /= inverse_mass_sum
 
             if abs(jt) < j * mu:
                 # Object is nearly at rest, apply static friction.
                 impulse = jt * t
             else:
                 # Object is not nearly at rest, apply dynamic friction.
+                mu_dynamic = (o1.material.dynamic_friction ** 2
+                              + o2.material.dynamic_friction ** 2
+                              ) ** 0.5
                 impulse = t * -j * mu_dynamic
 
             apply_impulse(o1, -impulse, pos_o1)
@@ -150,3 +193,50 @@ class CollidingWorld(System):
         for o1, o2, separation, normal in collisions:
             correct_positions(o1, o2, separation, normal)
 
+    def to_dict(self):
+        d = super().to_dict()
+
+        # Assemble dict of shapes.
+        shapes = {}
+        for ent in self.entities:
+            shapes[str(id(ent.vertices))] = ent.vertices
+
+        # Assemble dict of materials in the same way.
+        materials = {}
+        for ent in self.entities:
+            materials[str(id(ent.material))] = ent.material
+
+        d.update(
+            {'shapes'   : shapes,
+             'materials': materials}
+        )
+
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        materials = {}
+        for id_, m in d['materials'].items():
+            material = Material.from_dict(m)
+            materials[id_] = material
+
+        shapes = {}
+        for id_, s in d['shapes'].items():
+            shape = [Vec.from_dict(v) for v in s]
+            shapes[id_] = shape
+
+        entities = {}
+        for id_, e in d['entities'].items():
+            entity = Collider.from_dict(e, id_, shapes, materials)
+            entities[id_] = entity
+
+        springs = []
+        for s in d['springs']:
+            spring = Spring.from_dict(s, entities)
+            springs.append(spring)
+
+        world = cls(gravity=Vec.from_dict(d['gravity']))
+        world.add_ent(*entities.values())
+        world.add_spring(*springs)
+
+        return world

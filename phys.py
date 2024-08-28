@@ -2,34 +2,67 @@
 
 from base import *
 
+import json
 
-__all__ = ['System',
+
+__all__ = ['World',
            'Entity', 'Projectile', 'Pin',
            'Spring']
 
 
 class Entity:
     """A basic physics object."""
-    def __init__(self, pos, mass, ang, moi):
+    def __init__(self, pos, mass, ang, moi, vel=Vec(), acc=Vec(), ang_vel=0, ang_acc=0):
         self.pos = pos
         self.mass = mass
-        self.vel = Vec(x=0, y=0)
-        self.acc = Vec(x=0, y=0)
+        self.vel = vel
+        self.acc = acc
         self.new_pos = self.pos
         self.new_vel = self.vel
         self.new_acc = self.acc
 
         # There is only one axis for rotation in 2D - the Z-axis.
         self.ang = ang
-        self.ang_vel = 0
-        self.ang_acc = 0
+        self.ang_vel = ang_vel
+        self.ang_acc = ang_acc
         self.new_ang = ang
-        self.new_ang_vel = 0
-        self.new_ang_acc = 0
+        self.new_ang_vel = self.ang_vel
+        self.new_ang_acc = self.ang_acc
         self.moi = moi  # Moment of inertia
 
+    def to_dict(self):
+        return {'mass': self.mass,
+                'moi': self.moi,
+                'pos': self.pos,
+                'vel': self.vel,
+                'acc': self.acc,
+                'ang': self.ang,
+                'ang_vel': self.ang_vel,
+                'ang_acc': self.ang_acc}
 
-class System:
+    @classmethod
+    def from_dict(cls, d, *args, **kwargs):
+        return cls(
+            mass=['mass'],
+            pos=Vec.from_dict(d['pos']),
+            vel=Vec.from_dict(d['vel']),
+            acc=Vec.from_dict(d['acc']),
+            moi=d['moi'],
+            ang=d['ang'],
+            ang_vel=d['ang_vel'],
+            ang_acc=d['ang_acc'],
+        )
+
+
+class PhysSerialiser(json.JSONEncoder):
+    def default(self, o):
+        if hasattr(o, 'to_dict'):
+            return o.to_dict()
+        else:
+            return super().default(o)
+
+
+class World:
     """A world to hold and simulate interaction of `Entity`s."""
     def __init__(self, gravity=Vec(0, 0)):
         self.entities = []
@@ -128,11 +161,39 @@ class System:
             ent.new_ang_vel = ent.ang_vel
             ent.new_ang_acc = 0
 
-    def get_state(self):
-        """Get the positions and velocities of all entities in self."""
-        return "".join(flatten(
-                        ("ent p=", str(ent.pos), " v=", str(ent.vel), "\n")
-                        for ent in self.entities))
+    def to_dict(self):
+        # Generate dict of entities.
+        entities = {}
+        for ent in self.entities:
+            entities[str(id(ent))] = ent.to_dict()
+
+        # Generate list of springs.
+        springs = [spring.to_dict() for spring in self.springs]
+
+        return {'springs': springs,
+                'entities': entities,
+                'gravity': self.gravity}
+
+    def serialise(self, cls=PhysSerialiser):
+        return json.dumps(self, cls=cls)
+
+    @classmethod
+    def from_dict(cls, d):
+        entities = {}
+        for id_, e in d['entities'].items():
+            entity = Entity.from_dict(e)
+            entities[id_] = entity
+
+        springs = []
+        for s in d['springs'].items():
+            spring = Spring.from_dict(s, entities)
+            springs.append(spring)
+
+        world = cls(gravity=Vec.from_dict(d['gravity']))
+        world.add_ent(entities.values())
+        world.add_spring(springs)
+
+        return world
 
 
 class Projectile(Entity):
@@ -221,3 +282,18 @@ class Spring:
     def get_end2_join_pos(self):
         """Calculates the rotation-aware join pos of end2."""
         return self.end2_join_pos.rotate(self.end2.ang)
+
+    def to_dict(self):
+        return {'stiffness': self.stiffness,
+                'slack_length': self.slack_length,
+                'end1': str(id(self.end1)),
+                'end2': str(id(self.end2))}
+
+    @classmethod
+    def from_dict(cls, d, entities):
+        return cls(
+            stiffness=d['stiffness'],
+            slack_length=d['slack_length'],
+            end1=entities[d['end1']],
+            end2=entities[d['end2']]
+        )

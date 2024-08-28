@@ -8,6 +8,36 @@ from colliding_world import Material
 __all__ = ['get_material', 'get_colour']
 
 
+class AttributeSet:
+    def __init__(self, master, row, name, hint, error_msg, validity_check):
+        self.validity_check = validity_check
+        self.error_msg = error_msg
+
+        self.label = tkinter.Label(master, text=name)
+        self.label.grid(row=row, column=0)
+
+        self.entry = tkinter.Entry(master)
+        self.entry.grid(row=row, column=1)
+
+        self.info_button = tkinter.Button(
+            master,
+            text='i',
+            fg='blue',
+            underline=0,
+            command=lambda: tkinter.messagebox.showinfo(
+                name + ' information',
+                hint,
+            )
+        )
+        self.info_button.grid(row=row, column=2)
+
+    def get(self):
+        return self.entry.get()
+
+    def is_valid(self):
+        return self.validity_check(self.entry.get())
+
+
 class MaterialSelectWindow:
     def __init__(self):
         self.material = None
@@ -95,34 +125,62 @@ class MaterialSelectWindow:
         return self.material
 
 
-class AttributeSet:
-    def __init__(self, master, row, name, hint, error_msg, validity_check):
-        self.validity_check = validity_check
-        self.error_msg = error_msg
+class SpringSelectWindow:
+    def __init__(self):
+        self.spring = None
+        self.tk = tkinter.Tk()
+        self.tk.resizable(False, False)
+        self.tk.title('Edit Spring')
 
-        self.label = tkinter.Label(master, text=name)
-        self.label.grid(row=row, column=0)
-
-        self.entry = tkinter.Entry(master)
-        self.entry.grid(row=row, column=1)
-
-        self.info_button = tkinter.Button(
-            master,
-            text='i',
-            fg='blue',
-            underline=0,
-            command=lambda: tkinter.messagebox.showinfo(
-                name + ' information',
-                hint,
-            )
+        self.stiffness = AttributeSet(
+            self.tk,
+            row=0,
+            name='Stiffness',
+            hint='Stiffness: how hard the spring pulls on its ends per unit '
+                 'of extension.',
+            error_msg='Stiffness must be a number greater than or equal to '
+                      'zero.',
+            validity_check=lambda x: is_float(x) and float(x) >= 0,
         )
-        self.info_button.grid(row=row, column=2)
 
-    def get(self):
-        return self.entry.get()
+        self.length = AttributeSet(
+            self.tk,
+            row=1,
+            name='Length',
+            hint='Length: how long the spring can get before it becomes '
+                 'taut.',
+            error_msg='Length must be a number greater than or equal to '
+                      'zero.',
+            validity_check=lambda x: is_float(x) and float(x) >= 0,
+        )
 
-    def is_valid(self):
-        return self.validity_check(self.entry.get())
+        self.ok_button = tkinter.Button(
+            self.tk,
+            text='OK',
+            command=self.ok_clicked,
+        )
+        self.ok_button.grid(row=2, columnspan=3)
+
+    def ok_clicked(self):
+        errors = []
+        if not self.stiffness.is_valid():
+            errors.append(self.stiffness.error_msg)
+        if not self.length.is_valid():
+            errors.append(self.length.error_msg)
+
+        if errors:
+            tkinter.messagebox.showerror('Bad Input', '\n'.join(errors))
+        else:
+            self.spring = (float(self.stiffness.get()),
+                           float(self.length.get()))
+
+            self.tk.destroy()
+
+    def run(self):
+        self.tk.mainloop()
+
+        # When the tk is destroyed,
+        return self.spring
 
 
 def is_float(string):
@@ -138,11 +196,23 @@ def get_material():
     return m.run()
 
 
+def get_spring():
+    s = SpringSelectWindow()
+    return s.run()
+
+
 def get_colour():
     tk = tkinter.Tk()
     tk.withdraw()
+
     colour = tkinter.colorchooser.askcolor()[0]
-    return tuple(map(int, colour))
+
+    tk.destroy()
+
+    if colour is None:
+        return None
+    else:
+        return tuple(map(int, colour))
 
 
 if __name__ == '__main__':

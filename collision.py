@@ -1,7 +1,7 @@
 from base import *
 
-__all__ = ['get_support',
-           'get_separation', 'collide', 'collide_point',
+__all__ = ['get_support', 'make_aabb',
+           'get_separation', 'collide', 'collide_point', 'collide_aabb',
            'collide_all',
            'get_intersector']
 
@@ -94,6 +94,7 @@ def collide_point(s, p1):
 
 def collide_all(colliders):
     polys = [c.get_vertices() for c in colliders]
+    boxes = [make_aabb(p) for p in polys]
 
     collisions = []
 
@@ -102,6 +103,9 @@ def collide_all(colliders):
         tail = polys[start + 1:]
 
         for i, poly in enumerate(tail):
+            if not collide_aabb(boxes[start], boxes[start + 1 + i]):
+                continue
+
             separation, axis = collide(head, poly)
             if separation < 0.0:
                 collisions.append(
@@ -112,3 +116,28 @@ def collide_all(colliders):
                 )
 
     return collisions
+
+
+def make_aabb(polygon):
+    # print(polygon)
+    x1 = float('inf')  # left
+    y1 = float('inf')  # top
+    x2 = -float('inf')  # right
+    y2 = -float('inf')  # bottom
+
+    for vertex in polygon:
+        if vertex.x < x1:
+            x1 = vertex.x
+        if vertex.x > x2:
+            x2 = vertex.x
+
+        if vertex.y < y1:
+            y1 = vertex.y
+        if vertex.y > y2:
+            y2 = vertex.y
+
+    return (x1, y1, x2, y2)
+
+
+def collide_aabb(a, b):
+    return not (a[0] > b[2] or a[1] > b[3] or b[0] > a[2] or b[1] > a[3])
